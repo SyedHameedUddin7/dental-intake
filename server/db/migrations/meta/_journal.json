@@ -8,6 +8,13 @@
       "when": 1784263212722,
       "tag": "0000_freezing_next_avengers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1784264705542,
+      "tag": "0001_auth_users_fk_and_profile_trigger",
+      "breakpoints": true
     }
   ]
 }
