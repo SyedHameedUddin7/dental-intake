@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { z } from 'zod'
 import { intakeSchema } from '#shared/schemas/intake'
+import type { SummaryResult } from '#shared/schemas/summary'
 
 definePageMeta({ roles: ['admin', 'front_desk'] })
+
+const { profile } = useProfile()
 
 const form = reactive({
   firstName: '',
@@ -19,7 +22,12 @@ const form = reactive({
 const errors = ref<Record<string, string[] | undefined>>({})
 const submitting = ref(false)
 const submitError = ref('')
-const success = ref<{ patientId: string } | null>(null)
+const success = ref<{ patientId: string; intakeId: string } | null>(null)
+
+const canSummarize = computed(() => profile.value?.role === 'admin' || profile.value?.role === 'dentist')
+const summarizing = ref(false)
+const summaryError = ref('')
+const summary = ref<SummaryResult | null>(null)
 
 // Comma-separated text -> a clean array of trimmed, non-empty tags.
 function toList(s: string) {
@@ -52,7 +60,9 @@ async function submit() {
   submitting.value = true
   try {
     const res = await $fetch('/api/intake', { method: 'POST', body: parsed.data })
-    success.value = { patientId: res.patientId }
+    success.value = { patientId: res.patientId, intakeId: res.intakeId }
+    summary.value = null
+    summaryError.value = ''
     Object.assign(form, {
       firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
       allergies: '', conditions: '', medications: '', symptoms: '',
@@ -65,6 +75,23 @@ async function submit() {
     submitting.value = false
   }
 }
+
+async function generateSummary() {
+  if (!success.value) return
+  summaryError.value = ''
+  summarizing.value = true
+  try {
+    const res = await $fetch('/api/summaries', {
+      method: 'POST',
+      body: { intakeId: success.value.intakeId },
+    })
+    summary.value = { summaryText: res.summaryText, structured: res.structured } as SummaryResult
+  } catch (e: any) {
+    summaryError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not generate summary'
+  } finally {
+    summarizing.value = false
+  }
+}
 </script>
 
 <template>
@@ -72,9 +99,33 @@ async function submit() {
     <h1>Patient intake</h1>
     <NuxtLink to="/">← Back</NuxtLink>
 
-    <p v-if="success" style="color:#0a0">
-      Intake saved. Patient ID: <code>{{ success.patientId }}</code>
-    </p>
+    <div v-if="success" style="border:1px solid #0a0;padding:.75rem;border-radius:6px">
+      <p style="color:#0a0;margin:0">
+        Intake saved. Patient ID: <code>{{ success.patientId }}</code>
+      </p>
+      <button
+        v-if="canSummarize"
+        :disabled="summarizing"
+        style="margin-top:.5rem"
+        @click="generateSummary"
+      >
+        {{ summarizing ? 'Generating…' : 'Generate AI summary' }}
+      </button>
+      <p v-if="summaryError" style="color:#c00">{{ summaryError }}</p>
+
+      <div v-if="summary" style="margin-top:.75rem">
+        <p style="white-space:pre-wrap">{{ summary.summaryText }}</p>
+        <p v-if="summary.structured.chiefComplaint">
+          <strong>Chief complaint:</strong> {{ summary.structured.chiefComplaint }}
+        </p>
+        <p v-if="summary.structured.riskFlags.length">
+          <strong>Risk flags:</strong> {{ summary.structured.riskFlags.join(', ') }}
+        </p>
+        <p v-if="summary.structured.recommendations.length">
+          <strong>Recommendations:</strong> {{ summary.structured.recommendations.join(', ') }}
+        </p>
+      </div>
+    </div>
     <p v-if="submitError" style="color:#c00">{{ submitError }}</p>
 
     <label>First name
