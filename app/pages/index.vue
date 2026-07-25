@@ -15,7 +15,10 @@ async function signOut() {
     <h1>Dental intake</h1>
     <p>Signed in as {{ user?.email }}</p>
     <p>Role: <strong>{{ profile?.role ?? '…' }}</strong></p>
-    <nav style="margin:1rem 0"><NuxtLink to="/admin">Admin area</NuxtLink></nav>
+    <nav style="margin:1rem 0;display:flex;gap:1rem">
+      <NuxtLink v-if="profile?.role === 'admin' || profile?.role === 'front_desk'" to="/intake">New intake</NuxtLink>
+      <NuxtLink v-if="profile?.role === 'admin'" to="/admin">Admin area</NuxtLink>
+    </nav>
     <button @click="signOut">Sign out</button>
   </div>
 </template>
