@@ -28,6 +28,9 @@ export const intakeSchema = z.object({
   conditions: tagList,
   medications: tagList,
   symptoms: optionalText(2000),
+  // Present when the intake originated from a voice recording; the server
+  // uses it to mark source='voice' and retain the raw transcript.
+  rawTranscript: z.string().trim().max(20000).optional(),
 })
 
 export type IntakeInput = z.infer<typeof intakeSchema>
