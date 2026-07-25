@@ -12,6 +12,7 @@
   "dependencies": {
     "@nuxtjs/supabase": "^2.0.9",
     "drizzle-orm": "^0.45.2",
+    "groq-sdk": "^1.4.0",
     "nuxt": "^4.4.8",
     "postgres": "^3.4.9",
     "vue": "^3.5.39",
