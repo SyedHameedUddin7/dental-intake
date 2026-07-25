@@ -51,11 +51,12 @@ export default defineEventHandler(async (event) => {
       .insert(intakeSubmissions)
       .values({
         patientId: patient.id,
-        source: 'form',
+        source: input.rawTranscript ? 'voice' : 'form',
         allergies: input.allergies,
         conditions: input.conditions,
         medications: input.medications,
         symptoms: input.symptoms || null,
+        rawTranscript: input.rawTranscript || null,
       })
       .returning({ id: intakeSubmissions.id })
 
