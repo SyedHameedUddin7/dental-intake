@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import { patients, intakeSubmissions, profiles } from '../db/schema'
+import { patients, intakeSubmissions, visits, profiles } from '../db/schema'
 import { intakeSchema } from '#shared/schemas/intake'
 import { serverSupabaseUser } from '#supabase/server'
 
@@ -47,10 +47,22 @@ export default defineEventHandler(async (event) => {
       })
       .returning({ id: patients.id })
 
+    // Check the patient in: a visit makes them appear on the live status board.
+    const [visit] = await tx
+      .insert(visits)
+      .values({
+        patientId: patient.id,
+        status: 'checked_in',
+        reason: input.symptoms || null,
+        checkedInAt: new Date(),
+      })
+      .returning({ id: visits.id })
+
     const [intake] = await tx
       .insert(intakeSubmissions)
       .values({
         patientId: patient.id,
+        visitId: visit.id,
         source: input.rawTranscript ? 'voice' : 'form',
         allergies: input.allergies,
         conditions: input.conditions,
@@ -60,7 +72,7 @@ export default defineEventHandler(async (event) => {
       })
       .returning({ id: intakeSubmissions.id })
 
-    return { patientId: patient.id, intakeId: intake.id }
+    return { patientId: patient.id, intakeId: intake.id, visitId: visit.id }
   })
 
   setResponseStatus(event, 201)
