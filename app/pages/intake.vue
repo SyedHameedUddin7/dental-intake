@@ -151,93 +151,134 @@ async function transcribe(blob: Blob) {
 </script>
 
 <template>
-  <div style="max-width:520px;margin:3rem auto;display:flex;flex-direction:column;gap:.75rem">
-    <h1>Patient intake</h1>
-    <NuxtLink to="/">← Back</NuxtLink>
-
-    <div v-if="success" style="border:1px solid #0a0;padding:.75rem;border-radius:6px">
-      <p style="color:#0a0;margin:0">
-        Intake saved. Patient ID: <code>{{ success.patientId }}</code>
-      </p>
-      <button
-        v-if="canSummarize"
-        :disabled="summarizing"
-        style="margin-top:.5rem"
-        @click="generateSummary"
-      >
-        {{ summarizing ? 'Generating…' : 'Generate AI summary' }}
-      </button>
-      <p v-if="summaryError" style="color:#c00">{{ summaryError }}</p>
-
-      <div v-if="summary" style="margin-top:.75rem">
-        <p style="white-space:pre-wrap">{{ summary.summaryText }}</p>
-        <p v-if="summary.structured.chiefComplaint">
-          <strong>Chief complaint:</strong> {{ summary.structured.chiefComplaint }}
-        </p>
-        <p v-if="summary.structured.riskFlags.length">
-          <strong>Risk flags:</strong> {{ summary.structured.riskFlags.join(', ') }}
-        </p>
-        <p v-if="summary.structured.recommendations.length">
-          <strong>Recommendations:</strong> {{ summary.structured.recommendations.join(', ') }}
-        </p>
-      </div>
+  <div class="max-w-2xl mx-auto flex flex-col gap-4">
+    <div>
+      <h1 class="text-xl font-semibold text-highlighted">Patient intake</h1>
+      <p class="text-sm text-muted">Register a patient and check them in to the board.</p>
     </div>
-    <p v-if="submitError" style="color:#c00">{{ submitError }}</p>
 
-    <fieldset style="border:1px solid #ccc;padding:.75rem;border-radius:6px">
-      <legend>🎤 Voice intake (optional)</legend>
-      <p style="margin:.25rem 0;font-size:.9em;color:#555">
-        Record the patient describing allergies, conditions, medications, and symptoms.
+    <!-- Success + AI summary -->
+    <UCard v-if="success" variant="subtle" class="ring-success/40">
+      <div class="flex items-center gap-2">
+        <UIcon name="i-lucide-check-circle-2" class="size-5 text-success" />
+        <p class="font-medium text-highlighted">Intake saved & patient checked in</p>
+      </div>
+      <p class="text-sm text-muted mt-1">
+        Patient ID <code class="text-xs">{{ success.patientId }}</code>
+      </p>
+
+      <UButton
+        v-if="canSummarize"
+        class="mt-3"
+        icon="i-lucide-sparkles"
+        variant="soft"
+        :loading="summarizing"
+        label="Generate AI summary"
+        @click="generateSummary"
+      />
+      <UAlert v-if="summaryError" class="mt-3" color="error" variant="subtle" :title="summaryError" />
+
+      <div v-if="summary" class="mt-4 flex flex-col gap-3">
+        <p class="text-sm whitespace-pre-wrap">{{ summary.summaryText }}</p>
+        <div v-if="summary.structured.chiefComplaint">
+          <p class="text-xs font-medium text-muted uppercase tracking-wide">Chief complaint</p>
+          <p class="text-sm">{{ summary.structured.chiefComplaint }}</p>
+        </div>
+        <div v-if="summary.structured.riskFlags.length">
+          <p class="text-xs font-medium text-muted uppercase tracking-wide mb-1">Risk flags</p>
+          <div class="flex flex-wrap gap-1">
+            <UBadge v-for="f in summary.structured.riskFlags" :key="f" color="error" variant="subtle">{{ f }}</UBadge>
+          </div>
+        </div>
+        <div v-if="summary.structured.recommendations.length">
+          <p class="text-xs font-medium text-muted uppercase tracking-wide mb-1">Recommendations</p>
+          <div class="flex flex-wrap gap-1">
+            <UBadge v-for="r in summary.structured.recommendations" :key="r" color="info" variant="subtle">{{ r }}</UBadge>
+          </div>
+        </div>
+      </div>
+    </UCard>
+
+    <UAlert v-if="submitError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="submitError" />
+
+    <!-- Voice intake -->
+    <UCard variant="subtle">
+      <div class="flex items-center gap-2 mb-1">
+        <UIcon name="i-lucide-mic" class="size-4 text-primary" />
+        <h2 class="font-medium text-highlighted">Voice intake</h2>
+        <UBadge color="neutral" variant="subtle" size="sm">Optional</UBadge>
+      </div>
+      <p class="text-sm text-muted mb-3">
+        Record the patient describing allergies, conditions, medications and symptoms.
         We'll transcribe it and prefill the fields below for you to review.
       </p>
-      <button v-if="!recording" type="button" :disabled="transcribing" @click="startRecording">
-        {{ transcribing ? 'Transcribing…' : 'Start recording' }}
-      </button>
-      <button v-else type="button" @click="stopRecording">■ Stop &amp; transcribe</button>
-      <span v-if="recording" style="color:#c00;margin-left:.5rem">● Recording…</span>
-      <p v-if="voiceError" style="color:#c00">{{ voiceError }}</p>
-      <p v-if="voiceTranscript" style="font-size:.9em;color:#333;white-space:pre-wrap">
-        <strong>Transcript:</strong> {{ voiceTranscript }}
-      </p>
-    </fieldset>
+      <div class="flex items-center gap-3">
+        <UButton
+          v-if="!recording"
+          icon="i-lucide-mic"
+          variant="soft"
+          :loading="transcribing"
+          :label="transcribing ? 'Transcribing…' : 'Start recording'"
+          @click="startRecording"
+        />
+        <UButton v-else icon="i-lucide-square" color="error" label="Stop & transcribe" @click="stopRecording" />
+        <UBadge v-if="recording" color="error" variant="subtle" icon="i-lucide-circle">Recording…</UBadge>
+      </div>
+      <UAlert v-if="voiceError" class="mt-3" color="error" variant="subtle" :title="voiceError" />
+      <div v-if="voiceTranscript" class="mt-3 text-sm text-muted whitespace-pre-wrap border-l-2 border-default pl-3">
+        {{ voiceTranscript }}
+      </div>
+    </UCard>
 
-    <label>First name
-      <input v-model="form.firstName" />
-      <small v-if="errors.firstName" style="color:#c00">{{ errors.firstName[0] }}</small>
-    </label>
-    <label>Last name
-      <input v-model="form.lastName" />
-      <small v-if="errors.lastName" style="color:#c00">{{ errors.lastName[0] }}</small>
-    </label>
-    <label>Date of birth
-      <input v-model="form.dateOfBirth" type="date" />
-      <small v-if="errors.dateOfBirth" style="color:#c00">{{ errors.dateOfBirth[0] }}</small>
-    </label>
-    <label>Phone
-      <input v-model="form.phone" type="tel" />
-      <small v-if="errors.phone" style="color:#c00">{{ errors.phone[0] }}</small>
-    </label>
-    <label>Email
-      <input v-model="form.email" type="email" />
-      <small v-if="errors.email" style="color:#c00">{{ errors.email[0] }}</small>
-    </label>
+    <!-- Patient details -->
+    <UCard>
+      <h2 class="font-medium text-highlighted mb-3">Patient details</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <UFormField label="First name" :error="errors.firstName?.[0]">
+          <UInput v-model="form.firstName" class="w-full" />
+        </UFormField>
+        <UFormField label="Last name" :error="errors.lastName?.[0]">
+          <UInput v-model="form.lastName" class="w-full" />
+        </UFormField>
+        <UFormField label="Date of birth" :error="errors.dateOfBirth?.[0]">
+          <UInput v-model="form.dateOfBirth" type="date" class="w-full" />
+        </UFormField>
+        <UFormField label="Phone" :error="errors.phone?.[0]">
+          <UInput v-model="form.phone" type="tel" class="w-full" />
+        </UFormField>
+        <UFormField label="Email" :error="errors.email?.[0]" class="sm:col-span-2">
+          <UInput v-model="form.email" type="email" class="w-full" />
+        </UFormField>
+      </div>
+    </UCard>
 
-    <label>Allergies <em>(comma-separated)</em>
-      <input v-model="form.allergies" placeholder="Penicillin, Latex" />
-    </label>
-    <label>Conditions <em>(comma-separated)</em>
-      <input v-model="form.conditions" placeholder="Diabetes, Hypertension" />
-    </label>
-    <label>Medications <em>(comma-separated)</em>
-      <input v-model="form.medications" placeholder="Metformin" />
-    </label>
-    <label>Symptoms / reason for visit
-      <textarea v-model="form.symptoms" rows="3" />
-      <small v-if="errors.symptoms" style="color:#c00">{{ errors.symptoms[0] }}</small>
-    </label>
+    <!-- Medical history -->
+    <UCard>
+      <h2 class="font-medium text-highlighted mb-3">Medical history</h2>
+      <div class="flex flex-col gap-3">
+        <UFormField label="Allergies" help="Comma-separated">
+          <UInput v-model="form.allergies" placeholder="Penicillin, Latex" class="w-full" />
+        </UFormField>
+        <UFormField label="Conditions" help="Comma-separated">
+          <UInput v-model="form.conditions" placeholder="Diabetes, Hypertension" class="w-full" />
+        </UFormField>
+        <UFormField label="Medications" help="Comma-separated">
+          <UInput v-model="form.medications" placeholder="Metformin" class="w-full" />
+        </UFormField>
+        <UFormField label="Symptoms / reason for visit" :error="errors.symptoms?.[0]">
+          <UTextarea v-model="form.symptoms" :rows="3" class="w-full" />
+        </UFormField>
+      </div>
+    </UCard>
 
-    <button :disabled="submitting" @click="submit">
-      {{ submitting ? 'Saving…' : 'Save intake' }}
-    </button>
+    <div class="flex justify-end">
+      <UButton
+        size="lg"
+        icon="i-lucide-save"
+        :loading="submitting"
+        label="Save intake"
+        @click="submit"
+      />
+    </div>
   </div>
 </template>

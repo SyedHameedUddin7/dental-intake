@@ -27,4 +27,6 @@ export type BoardVisit = {
   createdAt: string
   patientFirstName: string
   patientLastName: string
+  providerId: string | null
+  providerName: string | null
 }

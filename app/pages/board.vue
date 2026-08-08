@@ -4,18 +4,30 @@ import type { BoardVisit, VisitStatus } from '#shared/schemas/visit'
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
 const supabase = useSupabaseClient()
+const { profile } = useProfile()
 const { data: visits, refresh } = await useFetch<BoardVisit[]>('/api/visits')
 
 const live = ref(false)
+const isDentist = computed(() => profile.value?.role === 'dentist')
 
-const columns: { key: VisitStatus; label: string }[] = [
-  { key: 'checked_in', label: 'Checked in' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'done', label: 'Done' },
+const columns: {
+  key: VisitStatus
+  label: string
+  icon: string
+  color: 'info' | 'warning' | 'success'
+  iconClass: string
+}[] = [
+  { key: 'checked_in', label: 'Checked in', icon: 'i-lucide-user-check', color: 'info', iconClass: 'text-info' },
+  { key: 'in_progress', label: 'In progress', icon: 'i-lucide-loader', color: 'warning', iconClass: 'text-warning' },
+  { key: 'done', label: 'Done', icon: 'i-lucide-check-circle-2', color: 'success', iconClass: 'text-success' },
 ]
 
 function byStatus(status: VisitStatus) {
   return (visits.value ?? []).filter((v) => v.status === status)
+}
+
+function initials(v: BoardVisit) {
+  return `${v.patientFirstName[0] ?? ''}${v.patientLastName[0] ?? ''}`.toUpperCase()
 }
 
 function fmtTime(iso: string | null) {
@@ -48,41 +60,99 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div style="max-width:960px;margin:2rem auto">
-    <div style="display:flex;align-items:center;gap:1rem">
-      <h1 style="margin:0">Status board</h1>
-      <span :style="{ color: live ? '#0a0' : '#999', fontSize: '.9em' }">
-        {{ live ? '● Live' : '○ Connecting…' }}
-      </span>
-      <NuxtLink to="/" style="margin-left:auto">← Back</NuxtLink>
+  <div>
+    <div class="flex items-center gap-3 mb-6">
+      <div>
+        <h1 class="text-xl font-semibold text-highlighted">Status board</h1>
+        <p class="text-sm text-muted">
+          {{ isDentist ? 'Your patients and the available pool' : 'Live view of the floor' }}
+        </p>
+      </div>
+      <UBadge
+        :color="live ? 'success' : 'neutral'"
+        variant="subtle"
+        :icon="live ? 'i-lucide-radio' : 'i-lucide-loader-circle'"
+        class="ml-auto"
+      >
+        {{ live ? 'Live' : 'Connecting…' }}
+      </UBadge>
     </div>
 
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem">
-      <section v-for="col in columns" :key="col.key">
-        <h2 style="font-size:1rem;border-bottom:2px solid #ddd;padding-bottom:.25rem">
-          {{ col.label }} ({{ byStatus(col.key).length }})
-        </h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section v-for="col in columns" :key="col.key" class="flex flex-col">
+        <div class="flex items-center gap-2 mb-3">
+          <UIcon :name="col.icon" class="size-4" :class="col.iconClass" />
+          <h2 class="font-medium text-highlighted">{{ col.label }}</h2>
+          <UBadge :color="col.color" variant="subtle" size="sm">{{ byStatus(col.key).length }}</UBadge>
+        </div>
 
-        <p v-if="!byStatus(col.key).length" style="color:#999;font-size:.9em">No patients</p>
+        <div class="flex flex-col gap-3">
+          <p
+            v-if="!byStatus(col.key).length"
+            class="text-sm text-dimmed border border-dashed border-default rounded-lg p-4 text-center"
+          >
+            No patients
+          </p>
 
-        <div
-          v-for="v in byStatus(col.key)"
-          :key="v.id"
-          style="border:1px solid #ddd;border-radius:6px;padding:.6rem;margin-bottom:.6rem"
-        >
-          <strong>{{ v.patientFirstName }} {{ v.patientLastName }}</strong>
-          <span style="float:right;color:#888;font-size:.8em">{{ fmtTime(v.checkedInAt) }}</span>
-          <p v-if="v.reason" style="margin:.25rem 0;font-size:.9em;color:#555">{{ v.reason }}</p>
+          <UCard
+            v-for="v in byStatus(col.key)"
+            :key="v.id"
+            variant="subtle"
+            :ui="{ body: 'p-3 sm:p-3' }"
+          >
+            <div class="flex items-start gap-3">
+              <UAvatar :text="initials(v)" size="sm" :color="col.color" />
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <p class="font-medium text-highlighted truncate">
+                    {{ v.patientFirstName }} {{ v.patientLastName }}
+                  </p>
+                  <span class="ml-auto text-xs text-muted whitespace-nowrap">{{ fmtTime(v.checkedInAt) }}</span>
+                </div>
+                <p v-if="v.reason" class="text-sm text-muted line-clamp-2 mt-0.5">{{ v.reason }}</p>
+                <UBadge
+                  v-if="v.providerName"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  icon="i-lucide-stethoscope"
+                  class="mt-2"
+                >
+                  {{ v.providerName }}
+                </UBadge>
+              </div>
+            </div>
 
-          <div style="display:flex;gap:.4rem;margin-top:.4rem">
-            <button v-if="v.status === 'checked_in'" @click="setStatus(v.id, 'in_progress')">Start →</button>
-            <button v-if="v.status === 'in_progress'" @click="setStatus(v.id, 'done')">Complete →</button>
-            <button
-              v-if="v.status !== 'done'"
-              style="color:#c00"
-              @click="setStatus(v.id, 'no_show')"
-            >No show</button>
-          </div>
+            <div class="flex gap-2 mt-3">
+              <UButton
+                v-if="v.status === 'checked_in'"
+                label="Start"
+                icon="i-lucide-play"
+                color="primary"
+                variant="soft"
+                size="xs"
+                @click="setStatus(v.id, 'in_progress')"
+              />
+              <UButton
+                v-if="v.status === 'in_progress'"
+                label="Complete"
+                icon="i-lucide-check"
+                color="success"
+                variant="soft"
+                size="xs"
+                @click="setStatus(v.id, 'done')"
+              />
+              <UButton
+                v-if="v.status !== 'done'"
+                label="No show"
+                icon="i-lucide-user-x"
+                color="error"
+                variant="ghost"
+                size="xs"
+                @click="setStatus(v.id, 'no_show')"
+              />
+            </div>
+          </UCard>
         </div>
       </section>
     </div>

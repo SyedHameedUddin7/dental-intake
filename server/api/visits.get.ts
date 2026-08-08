@@ -1,4 +1,5 @@
-import { eq, and, gte, inArray, desc } from 'drizzle-orm'
+import { eq, and, or, gte, isNull, inArray, desc } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../db'
 import { visits, patients, profiles } from '../db/schema'
 import { serverSupabaseUser } from '#supabase/server'
@@ -24,6 +25,16 @@ export default defineEventHandler(async (event) => {
   const startOfToday = new Date()
   startOfToday.setHours(0, 0, 0, 0)
 
+  // A dentist sees only their own workload: visits assigned to them plus the
+  // unassigned pool they can pick up. Admin and front desk see the whole floor.
+  const scope =
+    profile.role === 'dentist'
+      ? or(eq(visits.providerId, userId), isNull(visits.providerId))
+      : undefined
+
+  // Join the assigned provider (if any) so the board can show who owns a visit.
+  const provider = alias(profiles, 'provider')
+
   const rows = await db
     .select({
       id: visits.id,
@@ -33,10 +44,13 @@ export default defineEventHandler(async (event) => {
       createdAt: visits.createdAt,
       patientFirstName: patients.firstName,
       patientLastName: patients.lastName,
+      providerId: visits.providerId,
+      providerName: provider.fullName,
     })
     .from(visits)
     .innerJoin(patients, eq(visits.patientId, patients.id))
-    .where(and(inArray(visits.status, [...ACTIVE]), gte(visits.checkedInAt, startOfToday)))
+    .leftJoin(provider, eq(visits.providerId, provider.id))
+    .where(and(inArray(visits.status, [...ACTIVE]), gte(visits.checkedInAt, startOfToday), scope))
     .orderBy(desc(visits.checkedInAt))
 
   return rows

@@ -3,9 +3,14 @@ definePageMeta({ roles: ['admin'] })
 </script>
 
 <template>
-  <div style="max-width:480px;margin:4rem auto">
-    <h1>Admin area</h1>
-    <p>Only admins reach this page.</p>
-    <NuxtLink to="/">← Back</NuxtLink>
+  <div>
+    <h1 class="text-xl font-semibold text-highlighted mb-2">Admin area</h1>
+    <UAlert
+      color="primary"
+      variant="subtle"
+      icon="i-lucide-shield"
+      title="Admin only"
+      description="Only administrators can reach this page."
+    />
   </div>
 </template>
