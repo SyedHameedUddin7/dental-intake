@@ -7,13 +7,13 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "seed": "node scripts/seed.mjs"
+    "postinstall": "nuxt prepare"
   },
   "dependencies": {
     "@deepgram/sdk": "^5.7.0",
     "@nuxt/ui": "^4.10.0",
     "@nuxtjs/supabase": "^2.0.9",
+    "@supabase/supabase-js": "^2.112.2",
     "drizzle-orm": "^0.45.2",
     "groq-sdk": "^1.4.0",
     "nuxt": "^4.4.8",
