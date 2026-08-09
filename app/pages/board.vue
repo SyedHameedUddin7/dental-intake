@@ -5,9 +5,21 @@ definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
 const supabase = useSupabaseClient()
 const { profile } = useProfile()
-const { data: visits, refresh } = await useFetch<BoardVisit[]>('/api/visits')
+
+// Local YYYY-MM-DD (not toISOString, which would shift by timezone).
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const today = toDateStr(new Date())
+const selectedDate = ref(today)
+
+// useFetch re-runs automatically when the `date` query ref changes.
+const { data: visits, refresh } = await useFetch<BoardVisit[]>('/api/visits', {
+  query: { date: selectedDate },
+})
 
 const live = ref(false)
+const isToday = computed(() => selectedDate.value === today)
 const isDentist = computed(() => profile.value?.role === 'dentist')
 
 const columns: {
@@ -61,21 +73,32 @@ onUnmounted(() => {
 
 <template>
   <div>
-    <div class="flex items-center gap-3 mb-6">
+    <div class="flex flex-wrap items-center gap-3 mb-6">
       <div>
         <h1 class="text-xl font-semibold text-highlighted">Status board</h1>
         <p class="text-sm text-muted">
           {{ isDentist ? 'Your patients and the available pool' : 'Live view of the floor' }}
         </p>
       </div>
-      <UBadge
-        :color="live ? 'success' : 'neutral'"
-        variant="subtle"
-        :icon="live ? 'i-lucide-radio' : 'i-lucide-loader-circle'"
-        class="ml-auto"
-      >
-        {{ live ? 'Live' : 'Connecting…' }}
-      </UBadge>
+
+      <div class="ml-auto flex items-center gap-2">
+        <UInput v-model="selectedDate" type="date" icon="i-lucide-calendar" :max="today" />
+        <UButton
+          v-if="!isToday"
+          label="Today"
+          color="neutral"
+          variant="subtle"
+          size="sm"
+          @click="selectedDate = today"
+        />
+        <UBadge
+          :color="live ? 'success' : 'neutral'"
+          variant="subtle"
+          :icon="live ? 'i-lucide-radio' : 'i-lucide-loader-circle'"
+        >
+          {{ live ? 'Live' : 'Connecting…' }}
+        </UBadge>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

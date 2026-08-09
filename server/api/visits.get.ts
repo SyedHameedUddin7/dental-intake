@@ -1,4 +1,5 @@
-import { eq, and, or, gte, isNull, inArray, desc } from 'drizzle-orm'
+import { z } from 'zod'
+import { eq, and, or, gte, lt, isNull, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../db'
 import { visits, patients, profiles } from '../db/schema'
@@ -6,6 +7,16 @@ import { serverSupabaseUser } from '#supabase/server'
 
 // Active statuses shown on the live board.
 const ACTIVE = ['checked_in', 'in_progress', 'done'] as const
+
+// Local-day [start, end) range for a 'YYYY-MM-DD' string (defaults to today).
+function dayRange(dateStr?: string) {
+  const now = new Date()
+  const parts = dateStr ? dateStr.split('-').map(Number) : []
+  const y = parts[0] ?? now.getFullYear()
+  const m = parts[1] ?? now.getMonth() + 1
+  const d = parts[2] ?? now.getDate()
+  return { start: new Date(y, m - 1, d), end: new Date(y, m - 1, d + 1) }
+}
 
 export default defineEventHandler(async (event) => {
   const claims = await serverSupabaseUser(event)
@@ -20,10 +31,10 @@ export default defineEventHandler(async (event) => {
     .limit(1)
   if (!profile) throw createError({ statusCode: 404, statusMessage: 'Profile not found' })
 
-  // Scope the board to today so completed visits clear overnight instead of
-  // accumulating forever in the "Done" column.
-  const startOfToday = new Date()
-  startOfToday.setHours(0, 0, 0, 0)
+  // Scope the board to a single day (defaults to today) so it stays a focused
+  // worklist. A `date` query param lets staff review any day's patients.
+  const dateParam = z.iso.date().optional().catch(undefined).parse(getQuery(event).date)
+  const { start, end } = dayRange(dateParam)
 
   // A dentist sees only their own workload: visits assigned to them plus the
   // unassigned pool they can pick up. Admin and front desk see the whole floor.
@@ -50,7 +61,14 @@ export default defineEventHandler(async (event) => {
     .from(visits)
     .innerJoin(patients, eq(visits.patientId, patients.id))
     .leftJoin(provider, eq(visits.providerId, provider.id))
-    .where(and(inArray(visits.status, [...ACTIVE]), gte(visits.checkedInAt, startOfToday), scope))
+    .where(
+      and(
+        inArray(visits.status, [...ACTIVE]),
+        gte(visits.checkedInAt, start),
+        lt(visits.checkedInAt, end),
+        scope,
+      ),
+    )
     .orderBy(desc(visits.checkedInAt))
 
   return rows
