@@ -106,7 +106,7 @@ async function generateSummary() {
       method: 'POST',
       body: { intakeId: success.value.intakeId },
     })
-    summary.value = { summaryText: res.summaryText, structured: res.structured } as SummaryResult
+    summary.value = { summaryText: res.summaryText, structured: res.structured }
   } catch (e: any) {
     summaryError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not generate summary'
   } finally {
