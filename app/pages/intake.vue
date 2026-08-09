@@ -7,6 +7,13 @@ definePageMeta({ roles: ['admin', 'front_desk'] })
 
 const { profile } = useProfile()
 
+// Dentists the patient can be assigned to at intake (optional preferred dentist).
+const { data: providers } = await useFetch<{ id: string; fullName: string }[]>('/api/providers')
+const providerOptions = computed(() => [
+  { label: 'No preference (unassigned pool)', value: '' },
+  ...(providers.value ?? []).map((p) => ({ label: p.fullName, value: p.id })),
+])
+
 const form = reactive({
   firstName: '',
   lastName: '',
@@ -17,6 +24,7 @@ const form = reactive({
   conditions: '',
   medications: '',
   symptoms: '',
+  providerId: '',
   rawTranscript: '',
 })
 
@@ -49,6 +57,7 @@ async function submit() {
     conditions: toList(form.conditions),
     medications: toList(form.medications),
     symptoms: form.symptoms,
+    providerId: form.providerId || undefined,
     rawTranscript: form.rawTranscript || undefined,
   }
 
@@ -67,7 +76,7 @@ async function submit() {
     summaryError.value = ''
     Object.assign(form, {
       firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
-      allergies: '', conditions: '', medications: '', symptoms: '', rawTranscript: '',
+      allergies: '', conditions: '', medications: '', symptoms: '', providerId: '', rawTranscript: '',
     })
     voiceTranscript.value = ''
   } catch (e: any) {
@@ -248,6 +257,14 @@ async function transcribe(blob: Blob) {
         </UFormField>
         <UFormField label="Email" :error="errors.email?.[0]" class="sm:col-span-2">
           <UInput v-model="form.email" type="email" class="w-full" />
+        </UFormField>
+        <UFormField label="Preferred dentist" help="Optional — leave as pool for walk-ins" class="sm:col-span-2">
+          <USelect
+            v-model="form.providerId"
+            :items="providerOptions"
+            icon="i-lucide-stethoscope"
+            class="w-full"
+          />
         </UFormField>
       </div>
     </UCard>

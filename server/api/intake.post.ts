@@ -48,12 +48,15 @@ export default defineEventHandler(async (event) => {
       .returning({ id: patients.id })
 
     // Check the patient in: a visit makes them appear on the live status board.
+    // An optional preferred dentist assigns the visit up front; otherwise it
+    // stays in the unassigned pool for any dentist to claim.
     const [visit] = await tx
       .insert(visits)
       .values({
         patientId: patient.id,
         status: 'checked_in',
         reason: input.symptoms || null,
+        providerId: input.providerId || null,
         checkedInAt: new Date(),
       })
       .returning({ id: visits.id })

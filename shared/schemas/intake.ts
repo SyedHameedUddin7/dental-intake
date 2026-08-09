@@ -28,6 +28,10 @@ export const intakeSchema = z.object({
   conditions: tagList,
   medications: tagList,
   symptoms: optionalText(2000),
+  // Optional preferred dentist. When set, the visit is assigned to them so it
+  // lands on their board immediately; when blank the patient stays in the
+  // unassigned pool for any dentist to pick up.
+  providerId: z.union([z.literal(''), z.uuid()]).optional(),
   // Present when the intake originated from a voice recording; the server
   // uses it to mark source='voice' and retain the raw transcript.
   rawTranscript: z.string().trim().max(20000).optional(),
