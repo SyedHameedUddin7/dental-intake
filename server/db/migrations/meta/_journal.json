@@ -22,6 +22,13 @@
       "when": 1784949926224,
       "tag": "0002_enable_rls_and_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785023408453,
+      "tag": "0003_visits_realtime",
+      "breakpoints": true
     }
   ]
 }
