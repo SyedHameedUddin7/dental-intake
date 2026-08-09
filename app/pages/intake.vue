@@ -8,7 +8,12 @@ definePageMeta({ roles: ['admin', 'front_desk'] })
 const { profile } = useProfile()
 
 // Dentists the patient can be assigned to at intake (optional preferred dentist).
-const { data: providers } = await useFetch<{ id: string; fullName: string }[]>('/api/providers')
+// Forward the session cookie so the authed endpoint resolves during SSR — plain
+// useFetch doesn't, which would return an empty list (same reason useProfile
+// uses useRequestFetch).
+const { data: providers } = await useFetch<{ id: string; fullName: string }[]>('/api/providers', {
+  headers: useRequestHeaders(['cookie']),
+})
 const providerOptions = computed(() => [
   { label: 'No preference (unassigned pool)', value: '' },
   ...(providers.value ?? []).map((p) => ({ label: p.fullName, value: p.id })),
