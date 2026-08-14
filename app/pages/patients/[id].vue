@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
+import type { InsuranceStatus } from '#shared/schemas/insurance'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
+
+const INS_STATUS: Record<InsuranceStatus, { label: string; color: 'neutral' | 'warning' | 'success' | 'error' }> = {
+  unverified: { label: 'Unverified', color: 'neutral' },
+  pending: { label: 'Pending', color: 'warning' },
+  verified: { label: 'Verified', color: 'success' },
+  expired: { label: 'Expired', color: 'error' },
+}
+const insStatusOptions = (['unverified', 'pending', 'verified', 'expired'] as const).map((v) => ({
+  label: INS_STATUS[v].label,
+  value: v,
+}))
 
 const route = useRoute()
 const { profile } = useProfile()
@@ -31,15 +43,36 @@ async function saveInsurance() {
   try {
     const res = await $fetch(`/api/patients/${patient.value.id}/insurance`, {
       method: 'PATCH',
-      body: { ...insDraft },
+      body: { ...insDraft, insuranceStatus: patient.value.insurance.status },
     })
     patient.value.insurance.provider = res.provider
     patient.value.insurance.memberId = res.memberId
+    patient.value.insurance.status = res.status
     editingInsurance.value = false
   } catch (e: any) {
     insError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not save insurance'
   } finally {
     savingInsurance.value = false
+  }
+}
+// Quick status change without opening the full editor.
+async function quickSetStatus(status: InsuranceStatus) {
+  if (!patient.value || patient.value.insurance.status === status) return
+  const prev = patient.value.insurance.status
+  patient.value.insurance.status = status
+  insError.value = ''
+  try {
+    await $fetch(`/api/patients/${patient.value.id}/insurance`, {
+      method: 'PATCH',
+      body: {
+        insuranceProvider: patient.value.insurance.provider ?? '',
+        insuranceMemberId: patient.value.insurance.memberId ?? '',
+        insuranceStatus: status,
+      },
+    })
+  } catch (e: any) {
+    patient.value.insurance.status = prev
+    insError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not update status'
   }
 }
 async function onCardSelected(e: Event) {
@@ -139,16 +172,30 @@ function fmtDateTime(iso: string | null) {
       <div class="flex items-center gap-2 mb-3">
         <UIcon name="i-lucide-shield-check" class="size-4 text-primary" />
         <h2 class="font-medium text-highlighted">Insurance</h2>
-        <UButton
-          v-if="canEditInsurance && !editingInsurance"
-          icon="i-lucide-pencil"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Edit insurance"
-          class="ml-auto"
-          @click="startEditInsurance"
-        />
+        <UBadge :color="INS_STATUS[patient.insurance.status].color" variant="subtle" size="sm">
+          {{ INS_STATUS[patient.insurance.status].label }}
+        </UBadge>
+
+        <div class="ml-auto flex items-center gap-2">
+          <USelectMenu
+            v-if="canEditInsurance"
+            :model-value="patient.insurance.status"
+            :items="insStatusOptions"
+            value-key="value"
+            size="xs"
+            class="w-32"
+            @update:model-value="quickSetStatus($event)"
+          />
+          <UButton
+            v-if="canEditInsurance && !editingInsurance"
+            icon="i-lucide-pencil"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Edit insurance"
+            @click="startEditInsurance"
+          />
+        </div>
       </div>
 
       <div v-if="editingInsurance" class="grid grid-cols-1 sm:grid-cols-2 gap-3">

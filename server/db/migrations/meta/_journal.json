@@ -36,6 +36,13 @@
       "when": 1786675622234,
       "tag": "0004_insurance_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786676868104,
+      "tag": "0005_insurance_status",
+      "breakpoints": true
     }
   ]
 }

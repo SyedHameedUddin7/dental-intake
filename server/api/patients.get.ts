@@ -32,6 +32,7 @@ export default defineEventHandler(async (event): Promise<PatientListItem[]> => {
       firstName: patients.firstName,
       lastName: patients.lastName,
       dateOfBirth: patients.dateOfBirth,
+      insuranceStatus: patients.insuranceStatus,
       lastVisitAt: max(visits.checkedInAt),
       visitCount: count(visits.id),
     })

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import type { PatientListItem } from '#shared/schemas/patient'
+import type { InsuranceStatus } from '#shared/schemas/insurance'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
+
+const INS_STATUS: Record<InsuranceStatus, { label: string; color: 'neutral' | 'warning' | 'success' | 'error' }> = {
+  unverified: { label: 'Unverified', color: 'neutral' },
+  pending: { label: 'Pending', color: 'warning' },
+  verified: { label: 'Verified', color: 'success' },
+  expired: { label: 'Expired', color: 'error' },
+}
 
 const search = ref('')
 const q = ref('')
@@ -52,7 +60,15 @@ function initials(p: PatientListItem) {
             <p class="font-medium text-highlighted truncate">{{ p.firstName }} {{ p.lastName }}</p>
             <p class="text-sm text-muted">DOB {{ fmtDate(p.dateOfBirth) }}</p>
           </div>
-          <div class="ml-auto text-right">
+          <UBadge
+            :color="INS_STATUS[p.insuranceStatus].color"
+            variant="subtle"
+            size="sm"
+            class="ml-auto hidden sm:inline-flex"
+          >
+            {{ INS_STATUS[p.insuranceStatus].label }}
+          </UBadge>
+          <div class="text-right sm:ml-0 ml-auto">
             <p class="text-sm text-highlighted">{{ p.visitCount }} visit{{ p.visitCount === 1 ? '' : 's' }}</p>
             <p class="text-xs text-muted">Last: {{ fmtDate(p.lastVisitAt) }}</p>
           </div>

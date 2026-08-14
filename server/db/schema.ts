@@ -5,6 +5,7 @@ export const userRole = pgEnum('user_role', ['admin', 'front_desk', 'dentist']);
 export const visitStatus = pgEnum('visit_status', ['scheduled', 'checked_in', 'in_progress', 'done', 'cancelled', 'no_show']);
 export const intakeSource = pgEnum('intake_source', ['form', 'voice']);
 export const auditAction = pgEnum('audit_action', ['view', 'create', 'update', 'delete']);
+export const insuranceStatus = pgEnum('insurance_status', ['unverified', 'pending', 'verified', 'expired']);
 
 // Staff. id will be constrained to auth.users.id via SQL migration in Step 4.
 export const profiles = pgTable('profiles', {
@@ -26,6 +27,7 @@ export const patients = pgTable('patients', {
   insuranceMemberId: text('insurance_member_id'),
   // Storage object path for the scanned insurance card (private bucket).
   insuranceCardPath: text('insurance_card_path'),
+  insuranceStatus: insuranceStatus('insurance_status').notNull().default('unverified'),
   createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."insurance_status" AS ENUM('unverified', 'pending', 'verified', 'expired');--> statement-breakpoint
+ALTER TABLE "patients" ADD COLUMN "insurance_status" "insurance_status" DEFAULT 'unverified' NOT NULL;
