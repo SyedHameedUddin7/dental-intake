@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { SummaryStructured } from './summary'
 
 // Query for looking up an existing patient before starting a fresh intake.
 // Matching is exact on name + date of birth (predictable and safe).
@@ -29,4 +30,40 @@ export type PatientMatch = {
   lastVisitAt: string | null
   visitCount: number
   history: PatientHistory | null
+}
+
+// A row in the patients directory.
+export type PatientListItem = {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  lastVisitAt: string | null
+  visitCount: number
+}
+
+// One visit in a patient's longitudinal history.
+export type TimelineVisit = {
+  id: string
+  status: string
+  reason: string | null
+  checkedInAt: string | null
+  createdAt: string
+  providerName: string | null
+  diagnosis: string | null
+  comments: string | null
+  history: PatientHistory | null
+  summary: { summaryText: string; structured: SummaryStructured } | null
+}
+
+// A patient with their full visit timeline (most recent first).
+export type PatientDetail = {
+  id: string
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  phone: string | null
+  email: string | null
+  createdAt: string
+  visits: TimelineVisit[]
 }

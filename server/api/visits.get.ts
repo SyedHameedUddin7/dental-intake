@@ -49,6 +49,7 @@ export default defineEventHandler(async (event) => {
   const rows = await db
     .select({
       id: visits.id,
+      patientId: visits.patientId,
       status: visits.status,
       reason: visits.reason,
       checkedInAt: visits.checkedInAt,
