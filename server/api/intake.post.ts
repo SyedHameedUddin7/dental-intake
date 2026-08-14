@@ -33,19 +33,40 @@ export default defineEventHandler(async (event) => {
   }
   const input = parsed.data
 
-  // Create the patient and their intake record atomically.
+  // Create (or reuse) the patient and their intake record atomically.
   const result = await db.transaction(async (tx) => {
-    const [patient] = await tx
-      .insert(patients)
-      .values({
-        firstName: input.firstName,
-        lastName: input.lastName,
-        dateOfBirth: input.dateOfBirth,
-        phone: input.phone || null,
-        email: input.email || null,
-        createdBy: userId,
-      })
-      .returning({ id: patients.id })
+    let patientId = input.patientId ?? null
+
+    if (patientId) {
+      // Returning patient: reuse the record and refresh contact details in case
+      // the front desk corrected anything. Verify it exists first.
+      const [existing] = await tx
+        .update(patients)
+        .set({
+          firstName: input.firstName,
+          lastName: input.lastName,
+          dateOfBirth: input.dateOfBirth,
+          phone: input.phone || null,
+          email: input.email || null,
+          updatedAt: new Date(),
+        })
+        .where(eq(patients.id, patientId))
+        .returning({ id: patients.id })
+      if (!existing) throw createError({ statusCode: 404, statusMessage: 'Patient not found' })
+    } else {
+      const [patient] = await tx
+        .insert(patients)
+        .values({
+          firstName: input.firstName,
+          lastName: input.lastName,
+          dateOfBirth: input.dateOfBirth,
+          phone: input.phone || null,
+          email: input.email || null,
+          createdBy: userId,
+        })
+        .returning({ id: patients.id })
+      patientId = patient.id
+    }
 
     // Check the patient in: a visit makes them appear on the live status board.
     // An optional preferred dentist assigns the visit up front; otherwise it
@@ -53,7 +74,7 @@ export default defineEventHandler(async (event) => {
     const [visit] = await tx
       .insert(visits)
       .values({
-        patientId: patient.id,
+        patientId,
         status: 'checked_in',
         reason: input.symptoms || null,
         providerId: input.providerId || null,
@@ -64,7 +85,7 @@ export default defineEventHandler(async (event) => {
     const [intake] = await tx
       .insert(intakeSubmissions)
       .values({
-        patientId: patient.id,
+        patientId,
         visitId: visit.id,
         source: input.rawTranscript ? 'voice' : 'form',
         allergies: input.allergies,
@@ -75,7 +96,7 @@ export default defineEventHandler(async (event) => {
       })
       .returning({ id: intakeSubmissions.id })
 
-    return { patientId: patient.id, intakeId: intake.id, visitId: visit.id }
+    return { patientId, intakeId: intake.id, visitId: visit.id }
   })
 
   setResponseStatus(event, 201)
