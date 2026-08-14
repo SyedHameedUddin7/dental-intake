@@ -16,6 +16,9 @@ const tagList = z
   .default([])
 
 export const intakeSchema = z.object({
+  // Set when checking in a returning patient — reuse their record instead of
+  // creating a new one. Omitted for a brand-new patient.
+  patientId: z.uuid().optional(),
   firstName: name,
   lastName: name,
   // HTML date inputs produce 'YYYY-MM-DD'; matches the `date` column.

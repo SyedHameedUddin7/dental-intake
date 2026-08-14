@@ -2,6 +2,7 @@
 import { z } from 'zod'
 import { intakeSchema } from '#shared/schemas/intake'
 import type { SummaryResult } from '#shared/schemas/summary'
+import type { PatientMatch } from '#shared/schemas/patient'
 
 definePageMeta({ roles: ['admin', 'front_desk'] })
 
@@ -24,6 +25,7 @@ const providerOptions = computed(() => [
 ])
 
 const form = reactive({
+  patientId: '',
   firstName: '',
   lastName: '',
   dateOfBirth: '',
@@ -36,6 +38,72 @@ const form = reactive({
   providerId: NO_PREFERENCE,
   rawTranscript: '',
 })
+
+// --- Returning-patient recognition (match on name + DOB) ---
+const matched = ref<PatientMatch | null>(null) // the returning patient we're reusing
+const suggestion = ref<PatientMatch | null>(null) // a found match not yet loaded
+const searching = ref(false)
+
+function identityMatches(p: PatientMatch) {
+  return (
+    form.firstName.trim().toLowerCase() === p.firstName.toLowerCase() &&
+    form.lastName.trim().toLowerCase() === p.lastName.toLowerCase() &&
+    form.dateOfBirth === p.dateOfBirth
+  )
+}
+
+// Prefill from an existing patient and reuse their record on submit.
+function loadPatient(p: PatientMatch) {
+  matched.value = p
+  suggestion.value = null
+  form.patientId = p.id
+  form.firstName = p.firstName
+  form.lastName = p.lastName
+  form.dateOfBirth = p.dateOfBirth
+  form.phone = p.phone ?? ''
+  form.email = p.email ?? ''
+  if (p.history) {
+    form.allergies = p.history.allergies.join(', ')
+    form.conditions = p.history.conditions.join(', ')
+    form.medications = p.history.medications.join(', ')
+  }
+  form.symptoms = '' // this visit's reason is new — ask "anything changed?"
+}
+
+// Detach: treat the entered details as a brand-new patient.
+function useAsNewPatient() {
+  matched.value = null
+  suggestion.value = null
+  form.patientId = ''
+}
+
+let searchTimer: ReturnType<typeof setTimeout> | undefined
+async function runSearch() {
+  searching.value = true
+  try {
+    const res = await $fetch<PatientMatch[]>('/api/patients/search', {
+      query: { firstName: form.firstName, lastName: form.lastName, dateOfBirth: form.dateOfBirth },
+    })
+    suggestion.value = !matched.value && res.length ? res[0]! : null
+  } catch {
+    suggestion.value = null
+  } finally {
+    searching.value = false
+  }
+}
+
+// When the identity fields change: drop a stale match, then debounce a lookup.
+watch(
+  () => [form.firstName, form.lastName, form.dateOfBirth] as const,
+  () => {
+    if (matched.value && !identityMatches(matched.value)) useAsNewPatient()
+    clearTimeout(searchTimer)
+    suggestion.value = null
+    if (matched.value) return
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.dateOfBirth) return
+    searchTimer = setTimeout(runSearch, 500)
+  },
+)
 
 const errors = ref<Record<string, string[] | undefined>>({})
 const submitting = ref(false)
@@ -57,6 +125,7 @@ async function submit() {
   success.value = null
 
   const payload = {
+    patientId: form.patientId || undefined,
     firstName: form.firstName,
     lastName: form.lastName,
     dateOfBirth: form.dateOfBirth,
@@ -84,9 +153,11 @@ async function submit() {
     summary.value = null
     summaryError.value = ''
     Object.assign(form, {
-      firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
+      patientId: '', firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
       allergies: '', conditions: '', medications: '', symptoms: '', providerId: NO_PREFERENCE, rawTranscript: '',
     })
+    matched.value = null
+    suggestion.value = null
     voiceTranscript.value = ''
   } catch (e: any) {
     // Surface server-side field errors if the server rejected validation.
@@ -248,9 +319,41 @@ async function transcribe(blob: Blob) {
       </div>
     </UCard>
 
+    <!-- Returning-patient suggestion (found by name + DOB, not yet loaded) -->
+    <UAlert
+      v-if="suggestion && !matched"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-user-search"
+      :title="`Existing patient: ${suggestion.firstName} ${suggestion.lastName}`"
+      :actions="[{ label: 'Load history', color: 'info', onClick: () => loadPatient(suggestion!) }]"
+    >
+      <template #description>
+        {{ suggestion.visitCount }} previous visit{{ suggestion.visitCount === 1 ? '' : 's' }}<template v-if="suggestion.lastVisitAt">, last on {{ new Date(suggestion.lastVisitAt).toLocaleDateString() }}</template>. Load their history instead of starting from scratch?
+      </template>
+    </UAlert>
+
     <!-- Patient details -->
     <UCard>
-      <h2 class="font-medium text-highlighted mb-3">Patient details</h2>
+      <div class="flex items-center gap-2 mb-3">
+        <h2 class="font-medium text-highlighted">Patient details</h2>
+        <UBadge v-if="matched" color="success" variant="subtle" icon="i-lucide-user-check">Returning patient</UBadge>
+        <UButton
+          v-if="matched"
+          label="Use as new patient"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          class="ml-auto"
+          @click="useAsNewPatient"
+        />
+        <UIcon v-else-if="searching" name="i-lucide-loader-circle" class="size-4 text-muted animate-spin ml-auto" />
+      </div>
+
+      <p v-if="matched" class="text-sm text-muted mb-3 -mt-1">
+        History prefilled from their last visit — update anything that changed since.
+      </p>
+
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <UFormField label="First name" :error="errors.firstName?.[0]">
           <UInput v-model="form.firstName" class="w-full" />
