@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../../db'
 import { patients, profiles } from '../../../db/schema'
 import { insuranceSchema } from '#shared/schemas/insurance'
+import { logAudit } from '../../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 // Front desk owns insurance details; admins too.
@@ -42,6 +43,14 @@ export default defineEventHandler(async (event) => {
       status: patients.insuranceStatus,
     })
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Patient not found' })
+
+  await logAudit({
+    actorId: userId,
+    action: 'update',
+    entityType: 'patient',
+    entityId: id.data,
+    metadata: { field: 'insurance', status: updated.status },
+  })
 
   return updated
 })

@@ -10,6 +10,7 @@ import {
   ALLOWED_CARD_TYPES,
   MAX_CARD_BYTES,
 } from '../../../utils/storage'
+import { logAudit } from '../../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 const CAN_EDIT = ['admin', 'front_desk']
@@ -54,6 +55,14 @@ export default defineEventHandler(async (event) => {
   if (error) throw createError({ statusCode: 502, statusMessage: `Upload failed: ${error.message}` })
 
   await db.update(patients).set({ insuranceCardPath: path, updatedAt: new Date() }).where(eq(patients.id, id.data))
+
+  await logAudit({
+    actorId: userId,
+    action: 'update',
+    entityType: 'patient',
+    entityId: id.data,
+    metadata: { field: 'insurance_card' },
+  })
 
   return { hasCard: true, cardUrl: await signedCardUrl(path) }
 })

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { visits, profiles } from '../../db/schema'
 import { visitUpdateSchema } from '#shared/schemas/visit'
+import { logAudit } from '../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 // Matches the visits_update RLS policy.
@@ -50,6 +51,8 @@ export default defineEventHandler(async (event) => {
     .where(eq(visits.id, id.data))
     .returning({ id: visits.id, status: visits.status, providerId: visits.providerId })
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Visit not found' })
+
+  await logAudit({ actorId: userId, action: 'update', entityType: 'visit', entityId: id.data, metadata: { status: updated.status } })
 
   return updated
 })

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../db'
 import { profiles } from '../../db/schema'
 import { getSupabaseAdmin } from '../../utils/supabaseAdmin'
+import { logAudit } from '../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 export default defineEventHandler(async (event) => {
@@ -39,6 +40,8 @@ export default defineEventHandler(async (event) => {
   const admin = getSupabaseAdmin()
   const { error } = await admin.auth.admin.deleteUser(id.data)
   if (error) throw createError({ statusCode: 400, statusMessage: error.message })
+
+  await logAudit({ actorId: userId, action: 'delete', entityType: 'staff', entityId: id.data, metadata: { role: target.role } })
 
   return { id: id.data, deleted: true }
 })

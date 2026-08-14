@@ -6,6 +6,7 @@ import { patients, visits, intakeSubmissions, aiSummaries, profiles } from '../.
 import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
 import type { SummaryStructured } from '#shared/schemas/summary'
 import { signedCardUrl } from '../../utils/storage'
+import { logAudit } from '../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 const CAN_VIEW = ['admin', 'front_desk', 'dentist']
@@ -129,6 +130,9 @@ export default defineEventHandler(async (event): Promise<PatientDetail> => {
       summary: it ? (summaryByIntake.get(it.id) ?? null) : null,
     }
   })
+
+  // HIPAA: record who opened this patient's full record.
+  await logAudit({ actorId: userId, action: 'view', entityType: 'patient', entityId: patientId })
 
   return {
     id: patient.id,

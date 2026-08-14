@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
 import type { InsuranceStatus } from '#shared/schemas/insurance'
+import type { AuditEntry } from '#shared/schemas/audit'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
@@ -100,6 +101,27 @@ async function onCardSelected(e: Event) {
 
 // Chart notes are editable by dentists and admins.
 const canEditNotes = computed(() => ['admin', 'dentist'].includes(profile.value?.role ?? ''))
+
+// Admin-only: who has accessed this patient's record (lazy-loaded).
+const isAdmin = computed(() => profile.value?.role === 'admin')
+const accessLog = ref<AuditEntry[] | null>(null)
+const loadingLog = ref(false)
+async function loadAccessLog() {
+  if (!patient.value) return
+  loadingLog.value = true
+  try {
+    accessLog.value = await $fetch<AuditEntry[]>('/api/audit', {
+      query: { entityId: patient.value.id, entityType: 'patient' },
+    })
+  } catch {
+    accessLog.value = []
+  } finally {
+    loadingLog.value = false
+  }
+}
+function fmtLog(iso: string) {
+  return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
 const editingId = ref<string | null>(null)
 const savingId = ref<string | null>(null)
 const notesError = ref('')
@@ -350,5 +372,31 @@ function fmtDateTime(iso: string | null) {
         </div>
       </UCard>
     </div>
+
+    <!-- Record access log (admin-only, lazy-loaded) -->
+    <UCard v-if="isAdmin">
+      <div class="flex items-center gap-2">
+        <UIcon name="i-lucide-history" class="size-4 text-muted" />
+        <h2 class="font-medium text-highlighted">Record access log</h2>
+        <UButton
+          v-if="accessLog === null"
+          label="Show"
+          color="neutral"
+          variant="subtle"
+          size="xs"
+          class="ml-auto"
+          :loading="loadingLog"
+          @click="loadAccessLog"
+        />
+      </div>
+      <div v-if="accessLog" class="mt-3 divide-y divide-default">
+        <div v-for="e in accessLog" :key="e.id" class="flex items-center gap-3 py-2 text-sm">
+          <span class="capitalize text-highlighted w-16">{{ e.action }}</span>
+          <span class="text-muted">{{ e.actorName ?? 'Unknown' }}</span>
+          <span class="ml-auto text-xs text-muted">{{ fmtLog(e.createdAt) }}</span>
+        </div>
+        <p v-if="!accessLog.length" class="text-sm text-dimmed py-2">No access recorded yet.</p>
+      </div>
+    </UCard>
   </div>
 </template>
