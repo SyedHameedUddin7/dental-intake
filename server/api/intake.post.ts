@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { patients, intakeSubmissions, visits, profiles } from '../db/schema'
 import { intakeSchema } from '#shared/schemas/intake'
+import { logAudit } from '../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 const CAN_CREATE = ['admin', 'front_desk']
@@ -101,6 +102,14 @@ export default defineEventHandler(async (event) => {
       .returning({ id: intakeSubmissions.id })
 
     return { patientId, intakeId: intake.id, visitId: visit.id }
+  })
+
+  await logAudit({
+    actorId: userId,
+    action: input.patientId ? 'update' : 'create',
+    entityType: 'patient',
+    entityId: result.patientId,
+    metadata: { visitId: result.visitId, source: input.rawTranscript ? 'voice' : 'form' },
   })
 
   setResponseStatus(event, 201)

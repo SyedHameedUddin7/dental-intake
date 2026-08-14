@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '../../../db'
 import { visits, profiles } from '../../../db/schema'
 import { visitNotesSchema } from '#shared/schemas/visit'
+import { logAudit } from '../../../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 // Chart notes are clinical — only dentists and admins may write them.
@@ -37,6 +38,8 @@ export default defineEventHandler(async (event) => {
     .where(eq(visits.id, id.data))
     .returning({ id: visits.id, diagnosis: visits.diagnosis, comments: visits.comments })
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Visit not found' })
+
+  await logAudit({ actorId: userId, action: 'update', entityType: 'visit', entityId: id.data, metadata: { field: 'chart_notes' } })
 
   return updated
 })

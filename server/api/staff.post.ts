@@ -4,6 +4,7 @@ import { db } from '../db'
 import { profiles } from '../db/schema'
 import { createStaffSchema } from '#shared/schemas/staff'
 import { getSupabaseAdmin } from '../utils/supabaseAdmin'
+import { logAudit } from '../utils/audit'
 import { serverSupabaseUser } from '#supabase/server'
 
 export default defineEventHandler(async (event) => {
@@ -50,6 +51,14 @@ export default defineEventHandler(async (event) => {
     .update(profiles)
     .set({ role, fullName, updatedAt: new Date() })
     .where(eq(profiles.id, data.user.id))
+
+  await logAudit({
+    actorId: userId,
+    action: 'create',
+    entityType: 'staff',
+    entityId: data.user.id,
+    metadata: { role, email },
+  })
 
   setResponseStatus(event, 201)
   return { id: data.user.id, fullName, role, email }

@@ -84,9 +84,12 @@ async function submit() {
 
 <template>
   <div class="max-w-3xl mx-auto flex flex-col gap-4">
-    <div>
-      <h1 class="text-xl font-semibold text-highlighted">Staff</h1>
-      <p class="text-sm text-muted">Create logins for dentists, front desk and admins.</p>
+    <div class="flex items-center gap-3">
+      <div>
+        <h1 class="text-xl font-semibold text-highlighted">Staff</h1>
+        <p class="text-sm text-muted">Create logins for dentists, front desk and admins.</p>
+      </div>
+      <UButton to="/audit" icon="i-lucide-scroll-text" label="Audit log" color="neutral" variant="subtle" size="sm" class="ml-auto" />
     </div>
 
     <!-- Just-created credentials, shown once -->
