@@ -131,9 +131,12 @@ onUnmounted(() => {
               <UAvatar :text="initials(v)" size="sm" :color="col.color" />
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
-                  <p class="font-medium text-highlighted truncate">
+                  <NuxtLink
+                    :to="`/patients/${v.patientId}`"
+                    class="font-medium text-highlighted truncate hover:text-primary hover:underline"
+                  >
                     {{ v.patientFirstName }} {{ v.patientLastName }}
-                  </p>
+                  </NuxtLink>
                   <span class="ml-auto text-xs text-muted whitespace-nowrap">{{ fmtTime(v.checkedInAt) }}</span>
                 </div>
                 <p v-if="v.reason" class="text-sm text-muted line-clamp-2 mt-0.5">{{ v.reason }}</p>

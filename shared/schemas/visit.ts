@@ -21,6 +21,7 @@ export const visitUpdateSchema = z.object({
 // A row as shown on the live status board.
 export type BoardVisit = {
   id: string
+  patientId: string
   status: VisitStatus
   reason: string | null
   checkedInAt: string | null
