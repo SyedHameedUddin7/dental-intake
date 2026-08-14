@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { SummaryStructured } from './summary'
+import type { PatientInsurance } from './insurance'
 
 // Query for looking up an existing patient before starting a fresh intake.
 // Matching is exact on name + date of birth (predictable and safe).
@@ -65,5 +66,6 @@ export type PatientDetail = {
   phone: string | null
   email: string | null
   createdAt: string
+  insurance: PatientInsurance
   visits: TimelineVisit[]
 }

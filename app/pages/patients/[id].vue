@@ -9,6 +9,62 @@ const { data: patient } = await useFetch<PatientDetail>(`/api/patients/${route.p
   headers: useRequestHeaders(['cookie']),
 })
 
+// Insurance is owned by front desk (and admins).
+const canEditInsurance = computed(() => ['admin', 'front_desk'].includes(profile.value?.role ?? ''))
+const editingInsurance = ref(false)
+const insDraft = reactive({ insuranceProvider: '', insuranceMemberId: '' })
+const savingInsurance = ref(false)
+const uploadingCard = ref(false)
+const insError = ref('')
+const cardInput = ref<HTMLInputElement | null>(null)
+
+function startEditInsurance() {
+  editingInsurance.value = true
+  insError.value = ''
+  insDraft.insuranceProvider = patient.value?.insurance.provider ?? ''
+  insDraft.insuranceMemberId = patient.value?.insurance.memberId ?? ''
+}
+async function saveInsurance() {
+  if (!patient.value) return
+  savingInsurance.value = true
+  insError.value = ''
+  try {
+    const res = await $fetch(`/api/patients/${patient.value.id}/insurance`, {
+      method: 'PATCH',
+      body: { ...insDraft },
+    })
+    patient.value.insurance.provider = res.provider
+    patient.value.insurance.memberId = res.memberId
+    editingInsurance.value = false
+  } catch (e: any) {
+    insError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not save insurance'
+  } finally {
+    savingInsurance.value = false
+  }
+}
+async function onCardSelected(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !patient.value) return
+  uploadingCard.value = true
+  insError.value = ''
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await $fetch<{ hasCard: boolean; cardUrl: string | null }>(
+      `/api/patients/${patient.value.id}/insurance-card`,
+      { method: 'POST', body: fd },
+    )
+    patient.value.insurance.hasCard = res.hasCard
+    patient.value.insurance.cardUrl = res.cardUrl
+  } catch (e: any) {
+    insError.value = e?.data?.statusMessage || e?.statusMessage || 'Upload failed'
+  } finally {
+    uploadingCard.value = false
+    input.value = ''
+  }
+}
+
 // Chart notes are editable by dentists and admins.
 const canEditNotes = computed(() => ['admin', 'dentist'].includes(profile.value?.role ?? ''))
 const editingId = ref<string | null>(null)
@@ -77,6 +133,73 @@ function fmtDateTime(iso: string | null) {
         </div>
       </div>
     </div>
+
+    <!-- Insurance -->
+    <UCard>
+      <div class="flex items-center gap-2 mb-3">
+        <UIcon name="i-lucide-shield-check" class="size-4 text-primary" />
+        <h2 class="font-medium text-highlighted">Insurance</h2>
+        <UButton
+          v-if="canEditInsurance && !editingInsurance"
+          icon="i-lucide-pencil"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          aria-label="Edit insurance"
+          class="ml-auto"
+          @click="startEditInsurance"
+        />
+      </div>
+
+      <div v-if="editingInsurance" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <UFormField label="Provider">
+          <UInput v-model="insDraft.insuranceProvider" placeholder="e.g. Delta Dental" class="w-full" />
+        </UFormField>
+        <UFormField label="Member ID">
+          <UInput v-model="insDraft.insuranceMemberId" placeholder="e.g. DD123456789" class="w-full" />
+        </UFormField>
+        <div class="sm:col-span-2 flex justify-end gap-2">
+          <UButton label="Cancel" color="neutral" variant="ghost" size="sm" @click="editingInsurance = false" />
+          <UButton label="Save" size="sm" :loading="savingInsurance" @click="saveInsurance" />
+        </div>
+      </div>
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+        <div><span class="text-muted">Provider:</span> {{ patient.insurance.provider || '—' }}</div>
+        <div><span class="text-muted">Member ID:</span> {{ patient.insurance.memberId || '—' }}</div>
+      </div>
+
+      <UAlert v-if="insError" class="mt-3" color="error" variant="subtle" :title="insError" />
+
+      <div class="mt-4">
+        <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">Card image</p>
+        <img
+          v-if="patient.insurance.cardUrl"
+          :src="patient.insurance.cardUrl"
+          alt="Insurance card"
+          class="max-h-48 rounded-md border border-default"
+        />
+        <p v-else class="text-sm text-dimmed">No card on file.</p>
+
+        <div v-if="canEditInsurance" class="mt-2">
+          <input
+            ref="cardInput"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            class="hidden"
+            @change="onCardSelected"
+          />
+          <UButton
+            :icon="patient.insurance.hasCard ? 'i-lucide-refresh-cw' : 'i-lucide-upload'"
+            :label="patient.insurance.hasCard ? 'Replace card' : 'Upload card'"
+            color="neutral"
+            variant="subtle"
+            size="xs"
+            :loading="uploadingCard"
+            @click="cardInput?.click()"
+          />
+        </div>
+      </div>
+    </UCard>
 
     <h2 class="font-medium text-highlighted">
       Visit history
