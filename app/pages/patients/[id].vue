@@ -1,12 +1,47 @@
 <script setup lang="ts">
-import type { PatientDetail } from '#shared/schemas/patient'
+import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
 const route = useRoute()
+const { profile } = useProfile()
 const { data: patient } = await useFetch<PatientDetail>(`/api/patients/${route.params.id}`, {
   headers: useRequestHeaders(['cookie']),
 })
+
+// Chart notes are editable by dentists and admins.
+const canEditNotes = computed(() => ['admin', 'dentist'].includes(profile.value?.role ?? ''))
+const editingId = ref<string | null>(null)
+const savingId = ref<string | null>(null)
+const notesError = ref('')
+const draft = reactive({ diagnosis: '', comments: '' })
+
+function startEdit(v: TimelineVisit) {
+  editingId.value = v.id
+  notesError.value = ''
+  draft.diagnosis = v.diagnosis ?? ''
+  draft.comments = v.comments ?? ''
+}
+function cancelEdit() {
+  editingId.value = null
+}
+async function saveNotes(v: TimelineVisit) {
+  savingId.value = v.id
+  notesError.value = ''
+  try {
+    const res = await $fetch(`/api/visits/${v.id}/notes`, {
+      method: 'PATCH',
+      body: { diagnosis: draft.diagnosis, comments: draft.comments },
+    })
+    v.diagnosis = res.diagnosis
+    v.comments = res.comments
+    editingId.value = null
+  } catch (e: any) {
+    notesError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not save notes'
+  } finally {
+    savingId.value = null
+  }
+}
 
 const statusMeta: Record<string, { label: string; color: 'info' | 'warning' | 'success' | 'error' | 'neutral' }> = {
   checked_in: { label: 'Checked in', color: 'info' },
@@ -84,10 +119,52 @@ function fmtDateTime(iso: string | null) {
         </div>
 
         <!-- Chart notes (dentist's post-visit notes) -->
-        <div v-if="v.diagnosis || v.comments" class="mt-3 rounded-md bg-elevated/50 p-3">
-          <p class="text-xs font-medium text-muted uppercase tracking-wide mb-1">Chart notes</p>
-          <p v-if="v.diagnosis" class="text-sm"><span class="text-muted">Diagnosis:</span> {{ v.diagnosis }}</p>
-          <p v-if="v.comments" class="text-sm whitespace-pre-wrap">{{ v.comments }}</p>
+        <div class="mt-3">
+          <!-- Editing -->
+          <div v-if="editingId === v.id" class="rounded-md border border-default p-3 flex flex-col gap-2">
+            <p class="text-xs font-medium text-muted uppercase tracking-wide">Chart notes</p>
+            <UFormField label="Diagnosis">
+              <UInput v-model="draft.diagnosis" placeholder="e.g. Cracked upper-left molar" class="w-full" />
+            </UFormField>
+            <UFormField label="Notes">
+              <UTextarea v-model="draft.comments" :rows="3" placeholder="Treatment performed, follow-up, etc." class="w-full" />
+            </UFormField>
+            <UAlert v-if="notesError" color="error" variant="subtle" :title="notesError" />
+            <div class="flex gap-2 justify-end">
+              <UButton label="Cancel" color="neutral" variant="ghost" size="sm" @click="cancelEdit" />
+              <UButton label="Save notes" size="sm" :loading="savingId === v.id" @click="saveNotes(v)" />
+            </div>
+          </div>
+
+          <!-- Existing notes -->
+          <div v-else-if="v.diagnosis || v.comments" class="rounded-md bg-elevated/50 p-3">
+            <div class="flex items-center gap-2 mb-1">
+              <p class="text-xs font-medium text-muted uppercase tracking-wide">Chart notes</p>
+              <UButton
+                v-if="canEditNotes"
+                icon="i-lucide-pencil"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                aria-label="Edit chart notes"
+                class="ml-auto"
+                @click="startEdit(v)"
+              />
+            </div>
+            <p v-if="v.diagnosis" class="text-sm"><span class="text-muted">Diagnosis:</span> {{ v.diagnosis }}</p>
+            <p v-if="v.comments" class="text-sm whitespace-pre-wrap">{{ v.comments }}</p>
+          </div>
+
+          <!-- Empty: prompt to add -->
+          <UButton
+            v-else-if="canEditNotes"
+            icon="i-lucide-plus"
+            label="Add chart notes"
+            color="neutral"
+            variant="subtle"
+            size="xs"
+            @click="startEdit(v)"
+          />
         </div>
 
         <!-- AI summary -->

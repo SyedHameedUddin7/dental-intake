@@ -18,6 +18,13 @@ export const visitUpdateSchema = z.object({
   status: visitStatusSchema,
 })
 
+// Payload for a dentist's post-visit chart notes. Empty strings clear a field.
+export const visitNotesSchema = z.object({
+  diagnosis: z.string().trim().max(500),
+  comments: z.string().trim().max(5000),
+})
+export type VisitNotesInput = z.infer<typeof visitNotesSchema>
+
 // A row as shown on the live status board.
 export type BoardVisit = {
   id: string
