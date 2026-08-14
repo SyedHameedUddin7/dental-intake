@@ -14,8 +14,12 @@ const today = toDateStr(new Date())
 const selectedDate = ref(today)
 
 // useFetch re-runs automatically when the `date` query ref changes.
+// Forward the session cookie so the authed endpoint resolves during SSR (plain
+// useFetch doesn't), giving a populated board on first paint rather than only
+// after the first realtime refresh.
 const { data: visits, refresh } = await useFetch<BoardVisit[]>('/api/visits', {
   query: { date: selectedDate },
+  headers: useRequestHeaders(['cookie']),
 })
 
 const live = ref(false)

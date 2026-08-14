@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { intakeSubmissions, patients, aiSummaries, profiles } from '../db/schema'
-import { summaryResultSchema } from '#shared/schemas/summary'
+import { summaryResultSchema, type SummaryResult } from '#shared/schemas/summary'
 import { getGroq, GROQ_MODEL } from '../utils/groq'
 import { serverSupabaseUser } from '#supabase/server'
 
@@ -71,7 +71,7 @@ export default defineEventHandler(async (event) => {
   // clearly instead of being masked as a generic generation failure.
   const groq = getGroq()
 
-  let result
+  let result: SummaryResult
   try {
     const completion = await groq.chat.completions.create({
       model: GROQ_MODEL,
@@ -98,13 +98,17 @@ export default defineEventHandler(async (event) => {
       model: GROQ_MODEL,
       createdBy: userId,
     })
-    .returning({
-      id: aiSummaries.id,
-      summaryText: aiSummaries.summaryText,
-      structured: aiSummaries.structured,
-      createdAt: aiSummaries.createdAt,
-    })
+    .returning({ id: aiSummaries.id, createdAt: aiSummaries.createdAt })
+  if (!saved) throw createError({ statusCode: 500, statusMessage: 'Failed to save summary' })
 
+  // Return the validated result (concretely typed) rather than the jsonb column
+  // (which infers as `unknown`), so the client gets a real SummaryResult.
   setResponseStatus(event, 201)
-  return { ...saved, model: GROQ_MODEL }
+  return {
+    id: saved.id,
+    createdAt: saved.createdAt,
+    model: GROQ_MODEL,
+    summaryText: result.summaryText,
+    structured: result.structured,
+  }
 })

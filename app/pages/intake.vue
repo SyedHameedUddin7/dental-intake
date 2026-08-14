@@ -8,9 +8,18 @@ definePageMeta({ roles: ['admin', 'front_desk'] })
 const { profile } = useProfile()
 
 // Dentists the patient can be assigned to at intake (optional preferred dentist).
-const { data: providers } = await useFetch<{ id: string; fullName: string }[]>('/api/providers')
+// Forward the session cookie so the authed endpoint resolves during SSR — plain
+// useFetch doesn't, which would return an empty list (same reason useProfile
+// uses useRequestFetch).
+const { data: providers } = await useFetch<{ id: string; fullName: string }[]>('/api/providers', {
+  headers: useRequestHeaders(['cookie']),
+})
+// Sentinel for the unassigned-pool option. Can't use '' as the value because
+// reka-ui's Select reserves the empty string to clear the selection (it throws
+// on an item with value="").
+const NO_PREFERENCE = 'none'
 const providerOptions = computed(() => [
-  { label: 'No preference (unassigned pool)', value: '' },
+  { label: 'No preference (unassigned pool)', value: NO_PREFERENCE },
   ...(providers.value ?? []).map((p) => ({ label: p.fullName, value: p.id })),
 ])
 
@@ -24,7 +33,7 @@ const form = reactive({
   conditions: '',
   medications: '',
   symptoms: '',
-  providerId: '',
+  providerId: NO_PREFERENCE,
   rawTranscript: '',
 })
 
@@ -57,7 +66,7 @@ async function submit() {
     conditions: toList(form.conditions),
     medications: toList(form.medications),
     symptoms: form.symptoms,
-    providerId: form.providerId || undefined,
+    providerId: form.providerId === NO_PREFERENCE ? undefined : form.providerId,
     rawTranscript: form.rawTranscript || undefined,
   }
 
@@ -76,7 +85,7 @@ async function submit() {
     summaryError.value = ''
     Object.assign(form, {
       firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
-      allergies: '', conditions: '', medications: '', symptoms: '', providerId: '', rawTranscript: '',
+      allergies: '', conditions: '', medications: '', symptoms: '', providerId: NO_PREFERENCE, rawTranscript: '',
     })
     voiceTranscript.value = ''
   } catch (e: any) {
@@ -97,7 +106,7 @@ async function generateSummary() {
       method: 'POST',
       body: { intakeId: success.value.intakeId },
     })
-    summary.value = { summaryText: res.summaryText, structured: res.structured } as SummaryResult
+    summary.value = { summaryText: res.summaryText, structured: res.structured }
   } catch (e: any) {
     summaryError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not generate summary'
   } finally {
