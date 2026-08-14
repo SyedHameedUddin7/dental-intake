@@ -41,6 +41,7 @@ export default defineEventHandler(async (event): Promise<PatientDetail> => {
       insuranceProvider: patients.insuranceProvider,
       insuranceMemberId: patients.insuranceMemberId,
       insuranceCardPath: patients.insuranceCardPath,
+      insuranceStatus: patients.insuranceStatus,
     })
     .from(patients)
     .where(eq(patients.id, patientId))
@@ -50,6 +51,7 @@ export default defineEventHandler(async (event): Promise<PatientDetail> => {
   const insurance = {
     provider: patient.insuranceProvider,
     memberId: patient.insuranceMemberId,
+    status: patient.insuranceStatus,
     hasCard: !!patient.insuranceCardPath,
     cardUrl: patient.insuranceCardPath ? await signedCardUrl(patient.insuranceCardPath) : null,
   }

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { SummaryStructured } from './summary'
-import type { PatientInsurance } from './insurance'
+import type { PatientInsurance, InsuranceStatus } from './insurance'
 
 // Query for looking up an existing patient before starting a fresh intake.
 // Matching is exact on name + date of birth (predictable and safe).
@@ -41,6 +41,7 @@ export type PatientListItem = {
   dateOfBirth: string
   lastVisitAt: string | null
   visitCount: number
+  insuranceStatus: InsuranceStatus
 }
 
 // One visit in a patient's longitudinal history.

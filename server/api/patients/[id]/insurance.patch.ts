@@ -32,10 +32,15 @@ export default defineEventHandler(async (event) => {
     .set({
       insuranceProvider: body.data.insuranceProvider || null,
       insuranceMemberId: body.data.insuranceMemberId || null,
+      insuranceStatus: body.data.insuranceStatus,
       updatedAt: new Date(),
     })
     .where(eq(patients.id, id.data))
-    .returning({ provider: patients.insuranceProvider, memberId: patients.insuranceMemberId })
+    .returning({
+      provider: patients.insuranceProvider,
+      memberId: patients.insuranceMemberId,
+      status: patients.insuranceStatus,
+    })
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Patient not found' })
 
   return updated
