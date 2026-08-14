@@ -48,6 +48,8 @@ export default defineEventHandler(async (event) => {
           dateOfBirth: input.dateOfBirth,
           phone: input.phone || null,
           email: input.email || null,
+          insuranceProvider: input.insuranceProvider || null,
+          insuranceMemberId: input.insuranceMemberId || null,
           updatedAt: new Date(),
         })
         .where(eq(patients.id, patientId))
@@ -62,6 +64,8 @@ export default defineEventHandler(async (event) => {
           dateOfBirth: input.dateOfBirth,
           phone: input.phone || null,
           email: input.email || null,
+          insuranceProvider: input.insuranceProvider || null,
+          insuranceMemberId: input.insuranceMemberId || null,
           createdBy: userId,
         })
         .returning({ id: patients.id })

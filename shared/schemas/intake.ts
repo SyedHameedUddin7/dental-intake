@@ -27,6 +27,8 @@ export const intakeSchema = z.object({
     .refine((d) => new Date(d) <= new Date(), 'Date of birth cannot be in the future'),
   phone: optionalText(30),
   email: z.union([z.literal(''), z.email('Enter a valid email')]).optional(),
+  insuranceProvider: optionalText(100),
+  insuranceMemberId: optionalText(100),
   allergies: tagList,
   conditions: tagList,
   medications: tagList,

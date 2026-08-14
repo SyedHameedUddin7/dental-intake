@@ -29,6 +29,13 @@
       "when": 1785023408453,
       "tag": "0003_visits_realtime",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786675622234,
+      "tag": "0004_insurance_fields",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,10 @@ export const patients = pgTable('patients', {
   dateOfBirth: date('date_of_birth').notNull(),
   phone: text('phone'),
   email: text('email'),
+  insuranceProvider: text('insurance_provider'),
+  insuranceMemberId: text('insurance_member_id'),
+  // Storage object path for the scanned insurance card (private bucket).
+  insuranceCardPath: text('insurance_card_path'),
   createdBy: uuid('created_by').references(() => profiles.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -31,6 +31,8 @@ const form = reactive({
   dateOfBirth: '',
   phone: '',
   email: '',
+  insuranceProvider: '',
+  insuranceMemberId: '',
   allergies: '',
   conditions: '',
   medications: '',
@@ -131,6 +133,8 @@ async function submit() {
     dateOfBirth: form.dateOfBirth,
     phone: form.phone,
     email: form.email,
+    insuranceProvider: form.insuranceProvider,
+    insuranceMemberId: form.insuranceMemberId,
     allergies: toList(form.allergies),
     conditions: toList(form.conditions),
     medications: toList(form.medications),
@@ -154,6 +158,7 @@ async function submit() {
     summaryError.value = ''
     Object.assign(form, {
       patientId: '', firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '',
+      insuranceProvider: '', insuranceMemberId: '',
       allergies: '', conditions: '', medications: '', symptoms: '', providerId: NO_PREFERENCE, rawTranscript: '',
     })
     matched.value = null
@@ -379,6 +384,23 @@ async function transcribe(blob: Blob) {
           />
         </UFormField>
       </div>
+    </UCard>
+
+    <!-- Insurance -->
+    <UCard>
+      <div class="flex items-center gap-2 mb-3">
+        <h2 class="font-medium text-highlighted">Insurance</h2>
+        <UBadge color="neutral" variant="subtle" size="sm">Optional</UBadge>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <UFormField label="Provider">
+          <UInput v-model="form.insuranceProvider" placeholder="e.g. Delta Dental" class="w-full" />
+        </UFormField>
+        <UFormField label="Member ID">
+          <UInput v-model="form.insuranceMemberId" placeholder="e.g. DD123456789" class="w-full" />
+        </UFormField>
+      </div>
+      <p class="text-xs text-muted mt-2">Scan the insurance card on the patient's record after check-in.</p>
     </UCard>
 
     <!-- Medical history -->

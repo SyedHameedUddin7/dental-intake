@@ -5,6 +5,7 @@ import { db } from '../../db'
 import { patients, visits, intakeSubmissions, aiSummaries, profiles } from '../../db/schema'
 import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
 import type { SummaryStructured } from '#shared/schemas/summary'
+import { signedCardUrl } from '../../utils/storage'
 import { serverSupabaseUser } from '#supabase/server'
 
 const CAN_VIEW = ['admin', 'front_desk', 'dentist']
@@ -37,11 +38,21 @@ export default defineEventHandler(async (event): Promise<PatientDetail> => {
       phone: patients.phone,
       email: patients.email,
       createdAt: patients.createdAt,
+      insuranceProvider: patients.insuranceProvider,
+      insuranceMemberId: patients.insuranceMemberId,
+      insuranceCardPath: patients.insuranceCardPath,
     })
     .from(patients)
     .where(eq(patients.id, patientId))
     .limit(1)
   if (!patient) throw createError({ statusCode: 404, statusMessage: 'Patient not found' })
+
+  const insurance = {
+    provider: patient.insuranceProvider,
+    memberId: patient.insuranceMemberId,
+    hasCard: !!patient.insuranceCardPath,
+    cardUrl: patient.insuranceCardPath ? await signedCardUrl(patient.insuranceCardPath) : null,
+  }
 
   // Visits, newest first, with the assigned dentist's name.
   const provider = alias(profiles, 'provider')
@@ -117,5 +128,15 @@ export default defineEventHandler(async (event): Promise<PatientDetail> => {
     }
   })
 
-  return { ...patient, createdAt: iso(patient.createdAt)!, visits: timeline }
+  return {
+    id: patient.id,
+    firstName: patient.firstName,
+    lastName: patient.lastName,
+    dateOfBirth: patient.dateOfBirth,
+    phone: patient.phone,
+    email: patient.email,
+    createdAt: iso(patient.createdAt)!,
+    insurance,
+    visits: timeline,
+  }
 })
