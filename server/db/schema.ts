@@ -6,6 +6,7 @@ export const visitStatus = pgEnum('visit_status', ['scheduled', 'checked_in', 'i
 export const intakeSource = pgEnum('intake_source', ['form', 'voice']);
 export const auditAction = pgEnum('audit_action', ['view', 'create', 'update', 'delete']);
 export const insuranceStatus = pgEnum('insurance_status', ['unverified', 'pending', 'verified', 'expired']);
+export const consentType = pgEnum('consent_type', ['hipaa', 'treatment', 'financial']);
 
 // Staff. id will be constrained to auth.users.id via SQL migration in Step 4.
 export const profiles = pgTable('profiles', {
@@ -77,5 +78,19 @@ export const auditLog = pgTable('audit_log', {
   entityType: text('entity_type').notNull(),
   entityId: uuid('entity_id'),
   metadata: jsonb('metadata'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// A signed consent form. Snapshots the exact wording + version the patient
+// agreed to, so the record stands even if the template text changes later.
+export const consents = pgTable('consents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  patientId: uuid('patient_id').notNull().references(() => patients.id, { onDelete: 'cascade' }),
+  type: consentType('type').notNull(),
+  version: text('version').notNull(),
+  bodySnapshot: text('body_snapshot').notNull(),
+  signatureData: text('signature_data').notNull(),
+  signedBy: uuid('signed_by').references(() => profiles.id, { onDelete: 'set null' }),
+  signedAt: timestamp('signed_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });

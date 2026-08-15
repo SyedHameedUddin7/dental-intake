@@ -2,6 +2,7 @@
 import type { PatientDetail, TimelineVisit } from '#shared/schemas/patient'
 import type { InsuranceStatus } from '#shared/schemas/insurance'
 import type { AuditEntry } from '#shared/schemas/audit'
+import { CONSENT_TEMPLATES, type ConsentStatus, type ConsentType, type SignedConsent } from '#shared/schemas/consent'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
@@ -121,6 +122,66 @@ async function loadAccessLog() {
 }
 function fmtLog(iso: string) {
   return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
+
+// --- Consent forms / e-signature ---
+const { data: consentList, refresh: refreshConsents } = await useFetch<ConsentStatus[]>(
+  `/api/patients/${route.params.id}/consents`,
+  { headers: useRequestHeaders(['cookie']) },
+)
+const canSignConsent = computed(() => ['admin', 'front_desk'].includes(profile.value?.role ?? ''))
+
+// Signing modal
+const signOpen = ref(false)
+const signingType = ref<ConsentType | null>(null)
+const sigPad = ref<{ clear: () => void; toDataURL: () => string; isEmpty: () => boolean } | null>(null)
+const hasSignature = ref(false)
+const signing = ref(false)
+const signError = ref('')
+const signTemplate = computed(() => (signingType.value ? CONSENT_TEMPLATES[signingType.value] : null))
+
+function openSign(type: ConsentType) {
+  signingType.value = type
+  hasSignature.value = false
+  signError.value = ''
+  signOpen.value = true
+}
+async function submitSign() {
+  if (!patient.value || !signingType.value || !sigPad.value || sigPad.value.isEmpty()) return
+  signing.value = true
+  signError.value = ''
+  try {
+    await $fetch(`/api/patients/${patient.value.id}/consents`, {
+      method: 'POST',
+      body: { type: signingType.value, signatureData: sigPad.value.toDataURL() },
+    })
+    signOpen.value = false
+    await refreshConsents()
+  } catch (e: any) {
+    signError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not save consent'
+  } finally {
+    signing.value = false
+  }
+}
+
+// Viewing a signed consent
+const viewOpen = ref(false)
+const viewing = ref<SignedConsent | null>(null)
+async function openView(consentId: string) {
+  if (!patient.value) return
+  viewing.value = null
+  viewOpen.value = true
+  try {
+    viewing.value = await $fetch<SignedConsent>(`/api/patients/${patient.value.id}/consents/${consentId}`)
+  } catch {
+    viewOpen.value = false
+  }
+}
+
+const consentBadge = (c: ConsentStatus) => {
+  if (!c.signed) return { label: 'Pending', color: 'neutral' as const }
+  if (c.signed.outdated) return { label: 'Outdated', color: 'warning' as const }
+  return { label: 'Signed', color: 'success' as const }
 }
 const editingId = ref<string | null>(null)
 const savingId = ref<string | null>(null)
@@ -269,6 +330,81 @@ function fmtDateTime(iso: string | null) {
         </div>
       </div>
     </UCard>
+
+    <!-- Consent forms -->
+    <UCard>
+      <div class="flex items-center gap-2 mb-3">
+        <UIcon name="i-lucide-file-signature" class="size-4 text-primary" />
+        <h2 class="font-medium text-highlighted">Consent forms</h2>
+      </div>
+      <div class="divide-y divide-default">
+        <div v-for="c in consentList" :key="c.type" class="flex items-center gap-3 py-2.5">
+          <div class="min-w-0">
+            <p class="font-medium text-highlighted">{{ c.title }}</p>
+            <p v-if="c.signed" class="text-xs text-muted">
+              Signed v{{ c.signed.version }} · {{ fmtDate(c.signed.signedAt) }}
+              <template v-if="c.signed.signedByName"> · witnessed by {{ c.signed.signedByName }}</template>
+              <template v-if="c.signed.outdated"> · template now v{{ c.currentVersion }}</template>
+            </p>
+            <p v-else class="text-xs text-muted">Not signed</p>
+          </div>
+          <div class="ml-auto flex items-center gap-2">
+            <UBadge :color="consentBadge(c).color" variant="subtle" size="sm">{{ consentBadge(c).label }}</UBadge>
+            <UButton v-if="c.signed" label="View" size="xs" color="neutral" variant="ghost" @click="openView(c.signed.id)" />
+            <UButton
+              v-if="canSignConsent && (!c.signed || c.signed.outdated)"
+              :label="c.signed ? 'Re-sign' : 'Sign'"
+              icon="i-lucide-pen-line"
+              size="xs"
+              variant="soft"
+              @click="openSign(c.type)"
+            />
+          </div>
+        </div>
+      </div>
+    </UCard>
+
+    <!-- Sign consent modal -->
+    <UModal v-model:open="signOpen" :title="signTemplate?.title" description="Please review the form, then sign below.">
+      <template #body>
+        <div class="text-sm whitespace-pre-wrap max-h-48 overflow-y-auto rounded-md border border-default p-3 bg-muted/30">
+          {{ signTemplate?.body }}
+        </div>
+        <p class="text-xs font-medium text-muted uppercase tracking-wide mt-4 mb-1">Signature</p>
+        <SignaturePad ref="sigPad" @change="hasSignature = $event" />
+        <UAlert v-if="signError" class="mt-2" color="error" variant="subtle" :title="signError" />
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full">
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="signOpen = false" />
+          <UButton
+            label="Agree & sign"
+            icon="i-lucide-check"
+            :disabled="!hasSignature"
+            :loading="signing"
+            @click="submitSign"
+          />
+        </div>
+      </template>
+    </UModal>
+
+    <!-- View signed consent modal -->
+    <UModal v-model:open="viewOpen" :title="viewing?.title ?? 'Consent'">
+      <template #body>
+        <div v-if="viewing">
+          <p class="text-xs text-muted mb-2">
+            Version {{ viewing.version }} · signed {{ fmtDateTime(viewing.signedAt) }}
+            <template v-if="viewing.signedByName"> · witnessed by {{ viewing.signedByName }}</template>
+          </p>
+          <div class="text-sm whitespace-pre-wrap rounded-md border border-default p-3 bg-muted/30">
+            {{ viewing.bodySnapshot }}
+          </div>
+          <p class="text-xs font-medium text-muted uppercase tracking-wide mt-4 mb-1">Signature</p>
+          <img :src="viewing.signatureData" alt="Signature" class="max-h-32 rounded-md border border-default bg-white" />
+        </div>
+        <p v-else class="text-sm text-muted">Loading…</p>
+      </template>
+    </UModal>
 
     <h2 class="font-medium text-highlighted">
       Visit history
