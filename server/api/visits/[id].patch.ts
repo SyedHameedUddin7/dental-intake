@@ -32,10 +32,13 @@ export default defineEventHandler(async (event) => {
 
   // When a dentist starts a visit, they claim ownership of it if it's still
   // unassigned — this is what makes it "their patient" on their board.
-  const fields: { status: typeof body.data.status; updatedAt: Date; providerId?: string } = {
+  const fields: { status: typeof body.data.status; updatedAt: Date; providerId?: string; checkedInAt?: Date } = {
     status: body.data.status,
     updatedAt: new Date(),
   }
+  // Checking a scheduled appointment in stamps checkedInAt so it appears on
+  // today's board.
+  if (body.data.status === 'checked_in') fields.checkedInAt = new Date()
   if (profile.role === 'dentist' && body.data.status === 'in_progress') {
     const [current] = await db
       .select({ providerId: visits.providerId })
