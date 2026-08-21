@@ -11,6 +11,7 @@ const isAdmin = computed(() => role.value === 'admin')
 const links = computed(() => {
   const items = [
     { label: 'Board', to: '/board', icon: 'i-lucide-layout-dashboard' },
+    { label: 'Schedule', to: '/schedule', icon: 'i-lucide-calendar-days' },
     { label: 'Patients', to: '/patients', icon: 'i-lucide-users' },
   ]
   if (canIntake.value) items.unshift({ label: 'New intake', to: '/intake', icon: 'i-lucide-clipboard-plus' })
