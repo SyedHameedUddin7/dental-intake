@@ -15,6 +15,7 @@ const links = computed(() => {
     { label: 'Patients', to: '/patients', icon: 'i-lucide-users' },
   ]
   if (canIntake.value) items.unshift({ label: 'New intake', to: '/intake', icon: 'i-lucide-clipboard-plus' })
+  if (canIntake.value) items.push({ label: 'Recalls', to: '/recalls', icon: 'i-lucide-bell-ring' })
   if (isAdmin.value) items.push({ label: 'Admin', to: '/admin', icon: 'i-lucide-shield' })
   return items
 })

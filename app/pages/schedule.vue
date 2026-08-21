@@ -5,6 +5,7 @@ import type { PatientListItem } from '#shared/schemas/patient'
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
 const supabase = useSupabaseClient()
+const route = useRoute()
 const { profile } = useProfile()
 const canBook = computed(() => ['admin', 'front_desk'].includes(profile.value?.role ?? ''))
 
@@ -39,6 +40,12 @@ function fmtTime(iso: string) {
 // Live updates: any visit change (new booking, check-in, cancel) refreshes.
 let channel: ReturnType<typeof supabase.channel> | null = null
 onMounted(() => {
+  // Arriving from a recall ("Book" on an overdue patient) pre-fills the modal.
+  const pid = route.query.patientId
+  const pname = route.query.patientName
+  if (canBook.value && typeof pid === 'string' && typeof pname === 'string') {
+    openBook({ id: pid, name: pname })
+  }
   channel = supabase
     .channel('schedule')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, () => refresh())
@@ -100,9 +107,9 @@ const providerOptions = computed(() => [
   ...providers.value.map((p) => ({ label: p.fullName, value: p.id })),
 ])
 
-async function openBook() {
+async function openBook(preselect?: { id: string; name: string }) {
   bookError.value = ''
-  selectedPatient.value = null
+  selectedPatient.value = preselect ?? null
   patientQuery.value = ''
   patientResults.value = []
   form.when = `${selectedDate.value}T09:00`
@@ -157,7 +164,7 @@ async function book() {
         <UInput v-model="selectedDate" type="date" size="sm" />
         <UButton icon="i-lucide-chevron-right" color="neutral" variant="ghost" size="sm" aria-label="Next day" @click="shiftDay(1)" />
         <UButton v-if="!isToday" label="Today" color="neutral" variant="subtle" size="sm" @click="selectedDate = today" />
-        <UButton v-if="canBook" icon="i-lucide-calendar-plus" label="Book" size="sm" @click="openBook" />
+        <UButton v-if="canBook" icon="i-lucide-calendar-plus" label="Book" size="sm" @click="openBook()" />
       </div>
     </div>
 
