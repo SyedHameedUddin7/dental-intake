@@ -38,7 +38,9 @@ export default defineEventHandler(async (event): Promise<RecallPatient[]> => {
     .innerJoin(visits, eq(visits.patientId, patients.id))
     .groupBy(patients.id)
     .having(
-      sql`max(${visits.checkedInAt}) < ${recallBefore}
+      // toISOString(): a bare Date inside a raw sql`` fragment has no column
+      // type mapper attached, so it reaches postgres.js unserialised and throws.
+      sql`max(${visits.checkedInAt}) < ${recallBefore.toISOString()}
         and coalesce(max(case when ${visits.status} = 'scheduled' and ${visits.scheduledAt} > now() then 1 else 0 end), 0) = 0`,
     )
     .orderBy(sql`max(${visits.checkedInAt}) asc`)
