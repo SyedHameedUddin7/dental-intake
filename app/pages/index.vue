@@ -1,7 +1,13 @@
 <script setup lang="ts">
 const user = useSupabaseUser()
-const { profile, fetchProfile } = useProfile()
+const supabase = useSupabaseClient()
+const { profile, missingProfile, fetchProfile } = useProfile()
 await fetchProfile()
+
+async function signOut() {
+  await supabase.auth.signOut()
+  navigateTo('/login')
+}
 
 const canIntake = computed(() => profile.value?.role === 'admin' || profile.value?.role === 'front_desk')
 
@@ -40,7 +46,21 @@ const cards = computed(() => {
       <p class="text-muted">{{ user?.email }}</p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <UAlert
+      v-if="missingProfile"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-user-x"
+      title="This account has no staff profile"
+      description="You are signed in, but no role has been assigned to this login, so none of the practice pages will open. Ask an administrator to create your staff record from Admin → Staff."
+      class="mb-6"
+    >
+      <template #actions>
+        <UButton color="neutral" variant="outline" size="sm" label="Sign out" @click="signOut" />
+      </template>
+    </UAlert>
+
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       <UCard
         v-for="card in cards"
         :key="card.to"
