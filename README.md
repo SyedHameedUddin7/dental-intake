@@ -93,8 +93,17 @@ Three roles, enforced by route middleware and in every API handler:
    npm run dev
    ```
 
-Create the first admin via Supabase Auth (a `profiles` row is auto-created by a trigger; set its
-`role` to `admin`). After that, admins create all other staff from **Admin → Staff** in the app.
+Create the first admin user in Supabase Auth, then give it a profile — sign-up does not create one,
+so that a login can never grant itself staff access:
+
+```sql
+insert into public.profiles (id, role, full_name)
+select id, 'admin', email from auth.users where email = 'you@clinic.test';
+```
+
+After that, admins create all other staff from **Admin → Staff** in the app, which provisions the
+profile for them. Public sign-ups should stay disabled (Supabase → Authentication → Sign In /
+Providers → *Allow new users to sign up*).
 
 ## Scripts
 
