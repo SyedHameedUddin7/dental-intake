@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { z } from 'zod'
 import type { Appointment } from '#shared/schemas/appointment'
-import type { PatientListItem } from '#shared/schemas/patient'
+import { createPatientSchema, type PatientListItem } from '#shared/schemas/patient'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
 
@@ -100,6 +101,68 @@ function pickPatient(p: PatientListItem) {
   patientQuery.value = ''
 }
 
+// --- Register a first-time caller ---
+// A booking has to reference an existing patient row, and intake was the only
+// other way to create one — but intake checks the patient straight in, which
+// would drop someone who merely phoned ahead onto today's board. This creates
+// the record only; they reach the board when they arrive and are checked in.
+const creatingPatient = ref(false)
+const creatingBusy = ref(false)
+const createError = ref('')
+const createErrors = ref<Record<string, string[] | undefined>>({})
+const duplicate = ref<{ id: string; firstName: string; lastName: string } | null>(null)
+const newPatient = reactive({ firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '' })
+
+function resetCreate() {
+  creatingPatient.value = false
+  creatingBusy.value = false
+  createError.value = ''
+  createErrors.value = {}
+  duplicate.value = null
+  Object.assign(newPatient, { firstName: '', lastName: '', dateOfBirth: '', phone: '', email: '' })
+}
+
+function startCreatePatient() {
+  resetCreate()
+  creatingPatient.value = true
+  // Carry over whatever was typed into the search box so it isn't retyped.
+  const parts = patientQuery.value.trim().split(/\s+/).filter(Boolean)
+  if (parts[0]) newPatient.firstName = parts[0]
+  if (parts.length > 1) newPatient.lastName = parts.slice(1).join(' ')
+  patientResults.value = []
+}
+
+async function createPatient() {
+  createError.value = ''
+  duplicate.value = null
+  const parsed = createPatientSchema.safeParse({ ...newPatient })
+  if (!parsed.success) {
+    createErrors.value = z.flattenError(parsed.error).fieldErrors
+    return
+  }
+  createErrors.value = {}
+  creatingBusy.value = true
+  try {
+    const created = await $fetch('/api/patients', { method: 'POST', body: parsed.data })
+    selectedPatient.value = { id: created.id, name: `${created.firstName} ${created.lastName}` }
+    resetCreate()
+  } catch (e: any) {
+    // 409 carries the clashing record so the booking can just use it instead.
+    duplicate.value = e?.data?.data?.existing ?? null
+    createErrors.value = e?.data?.data?.fieldErrors ?? {}
+    createError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not create patient'
+  } finally {
+    creatingBusy.value = false
+  }
+}
+
+function useDuplicate() {
+  if (!duplicate.value) return
+  const d = duplicate.value
+  selectedPatient.value = { id: d.id, name: `${d.firstName} ${d.lastName}` }
+  resetCreate()
+}
+
 // Providers (dentists) — loaded lazily when the modal opens.
 const providers = ref<{ id: string; fullName: string }[]>([])
 const providerOptions = computed(() => [
@@ -112,6 +175,7 @@ async function openBook(preselect?: { id: string; name: string }) {
   selectedPatient.value = preselect ?? null
   patientQuery.value = ''
   patientResults.value = []
+  resetCreate()
   form.when = `${selectedDate.value}T09:00`
   form.providerId = NO_PROVIDER
   form.reason = ''
@@ -234,8 +298,74 @@ async function book() {
                   <span class="text-muted text-xs">· DOB {{ new Date(p.dateOfBirth).toLocaleDateString() }}</span>
                 </button>
               </div>
+              <div v-if="!creatingPatient" class="mt-2 flex items-center gap-2">
+                <p v-if="patientQuery.trim() && !patientResults.length" class="text-xs text-muted">
+                  No match on file.
+                </p>
+                <UButton
+                  icon="i-lucide-user-plus"
+                  label="New patient"
+                  color="neutral"
+                  variant="subtle"
+                  size="xs"
+                  class="ml-auto"
+                  @click="startCreatePatient"
+                />
+              </div>
             </div>
           </UFormField>
+
+          <!-- Register a first-time caller without checking them in -->
+          <div v-if="creatingPatient && !selectedPatient" class="rounded-md border border-default p-3 flex flex-col gap-3">
+            <div class="flex items-center gap-2">
+              <UIcon name="i-lucide-user-plus" class="size-4 text-primary" />
+              <p class="text-xs font-medium text-muted uppercase tracking-wide">New patient</p>
+              <UButton
+                label="Back to search"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                class="ml-auto"
+                @click="resetCreate"
+              />
+            </div>
+            <p class="text-xs text-muted -mt-1">
+              Creates the record only — they appear on the board when they arrive and are checked in.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <UFormField label="First name" :error="createErrors.firstName?.[0]">
+                <UInput v-model="newPatient.firstName" class="w-full" />
+              </UFormField>
+              <UFormField label="Last name" :error="createErrors.lastName?.[0]">
+                <UInput v-model="newPatient.lastName" class="w-full" />
+              </UFormField>
+              <UFormField label="Date of birth" :error="createErrors.dateOfBirth?.[0]">
+                <UInput v-model="newPatient.dateOfBirth" type="date" class="w-full" />
+              </UFormField>
+              <UFormField label="Phone" :error="createErrors.phone?.[0]">
+                <UInput v-model="newPatient.phone" type="tel" class="w-full" />
+              </UFormField>
+              <UFormField label="Email" :error="createErrors.email?.[0]" class="sm:col-span-2">
+                <UInput v-model="newPatient.email" type="email" class="w-full" />
+              </UFormField>
+            </div>
+
+            <UAlert v-if="createError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="createError">
+              <template v-if="duplicate" #actions>
+                <UButton label="Use existing record" color="neutral" variant="outline" size="xs" @click="useDuplicate" />
+              </template>
+            </UAlert>
+
+            <div class="flex justify-end">
+              <UButton
+                label="Create & select"
+                icon="i-lucide-check"
+                size="sm"
+                :loading="creatingBusy"
+                @click="createPatient"
+              />
+            </div>
+          </div>
 
           <UFormField label="Date & time">
             <UInput v-model="form.when" type="datetime-local" class="w-full" />

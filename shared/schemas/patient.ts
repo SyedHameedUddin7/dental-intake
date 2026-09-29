@@ -11,6 +11,22 @@ export const patientSearchSchema = z.object({
 })
 export type PatientSearchInput = z.infer<typeof patientSearchSchema>
 
+// Creating a patient record on its own — no intake, no visit, no check-in.
+// Booking a first-time caller needs the record to exist before an appointment
+// can reference it, and intake always checks the patient in, which would put
+// someone who only phoned ahead onto today's board.
+export const createPatientSchema = z.object({
+  firstName: z.string().trim().min(1, 'Required').max(100),
+  lastName: z.string().trim().min(1, 'Required').max(100),
+  // HTML date inputs produce 'YYYY-MM-DD'; matches the `date` column.
+  dateOfBirth: z.iso
+    .date('Enter a valid date')
+    .refine((d) => new Date(d) <= new Date(), 'Date of birth cannot be in the future'),
+  phone: z.string().trim().max(30).optional(),
+  email: z.union([z.literal(''), z.email('Enter a valid email')]).optional(),
+})
+export type CreatePatientInput = z.infer<typeof createPatientSchema>
+
 // The most recent medical history on file for a matched patient — used to
 // prefill the intake form ("anything changed since last visit?").
 export type PatientHistory = {
