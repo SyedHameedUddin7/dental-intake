@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { and, eq, gte, lt, asc } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, lt, or } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../db'
 import { visits, patients, profiles } from '../db/schema'
@@ -34,6 +34,14 @@ export default defineEventHandler(async (event): Promise<Appointment[]> => {
   const dateParam = z.iso.date().optional().catch(undefined).parse(getQuery(event).date)
   const { start, end } = dayRange(dateParam)
 
+  // Same scoping the board applies: a dentist sees the appointments assigned to
+  // them plus the unassigned pool they could pick up, never another dentist's
+  // list. Admin and front desk see the whole practice's day.
+  const scope =
+    profile.role === 'dentist'
+      ? or(eq(visits.providerId, userId), isNull(visits.providerId))
+      : undefined
+
   const provider = alias(profiles, 'provider')
   const rows = await db
     .select({
@@ -50,7 +58,14 @@ export default defineEventHandler(async (event): Promise<Appointment[]> => {
     .from(visits)
     .innerJoin(patients, eq(visits.patientId, patients.id))
     .leftJoin(provider, eq(visits.providerId, provider.id))
-    .where(and(eq(visits.status, 'scheduled'), gte(visits.scheduledAt, start), lt(visits.scheduledAt, end)))
+    .where(
+      and(
+        eq(visits.status, 'scheduled'),
+        gte(visits.scheduledAt, start),
+        lt(visits.scheduledAt, end),
+        scope,
+      ),
+    )
     .orderBy(asc(visits.scheduledAt))
 
   return rows.map((r) => ({

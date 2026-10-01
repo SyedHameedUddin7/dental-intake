@@ -39,7 +39,7 @@ Three roles, enforced by route middleware and in every API handler:
 | --- | :---: | :---: | :---: |
 | New intake | ✅ | ✅ | — |
 | Status board | ✅ whole floor | ✅ whole floor | ✅ own + pool |
-| Schedule / book | ✅ | ✅ | view |
+| Schedule / book | ✅ | ✅ | view own + pool |
 | Recalls | ✅ | ✅ | — |
 | Patient records / timeline | ✅ | ✅ | ✅ |
 | Chart notes (write) | ✅ | — | ✅ |
