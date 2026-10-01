@@ -32,6 +32,10 @@ export type BoardVisit = {
   status: VisitStatus
   reason: string | null
   checkedInAt: string | null
+  // Set for rows in the Scheduled column — people expected today who have not
+  // arrived yet. Null for anyone already checked in.
+  scheduledAt: string | null
+  durationMinutes: number
   createdAt: string
   patientFirstName: string
   patientLastName: string

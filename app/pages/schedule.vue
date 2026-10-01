@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { z } from 'zod'
-import type { Appointment } from '#shared/schemas/appointment'
+import {
+  APPOINTMENT_DURATIONS,
+  DEFAULT_DURATION_MINUTES,
+  clinicHoursLabel,
+  type Appointment,
+  type BookingConflict,
+} from '#shared/schemas/appointment'
 import { createPatientSchema, type PatientListItem } from '#shared/schemas/patient'
 
 definePageMeta({ roles: ['admin', 'front_desk', 'dentist'] })
@@ -73,7 +79,18 @@ const bookOpen = ref(false)
 const booking = ref(false)
 const bookError = ref('')
 const NO_PROVIDER = 'none'
-const form = reactive({ when: '', providerId: NO_PROVIDER, reason: '' })
+const form = reactive({ when: '', providerId: NO_PROVIDER, reason: '', durationMinutes: DEFAULT_DURATION_MINUTES })
+
+const durationOptions = APPOINTMENT_DURATIONS.map((m) => ({ label: `${m} min`, value: m }))
+// Populated from a 409: the appointment already holding that dentist's chair.
+const conflict = ref<BookingConflict | null>(null)
+
+function fmtRange(iso: string, minutes: number) {
+  if (!iso) return ''
+  const from = new Date(iso)
+  const to = new Date(from.getTime() + minutes * 60_000)
+  return `${fmtTime(from.toISOString())}–${fmtTime(to.toISOString())}`
+}
 
 // Patient picker
 const patientQuery = ref('')
@@ -179,6 +196,8 @@ async function openBook(preselect?: { id: string; name: string }) {
   form.when = `${selectedDate.value}T09:00`
   form.providerId = NO_PROVIDER
   form.reason = ''
+  form.durationMinutes = DEFAULT_DURATION_MINUTES
+  conflict.value = null
   bookOpen.value = true
   if (!providers.value.length) {
     try {
@@ -196,12 +215,14 @@ async function book() {
   }
   booking.value = true
   bookError.value = ''
+  conflict.value = null
   try {
     await $fetch('/api/appointments', {
       method: 'POST',
       body: {
         patientId: selectedPatient.value.id,
         scheduledAt: new Date(form.when).toISOString(),
+        durationMinutes: form.durationMinutes,
         providerId: form.providerId === NO_PROVIDER ? undefined : form.providerId,
         reason: form.reason || undefined,
       },
@@ -209,6 +230,8 @@ async function book() {
     bookOpen.value = false
     await refresh()
   } catch (e: any) {
+    // 409 carries the clashing appointment so the clash can be named.
+    conflict.value = e?.data?.data?.conflict ?? null
     bookError.value = e?.data?.statusMessage || e?.statusMessage || 'Could not book appointment'
   } finally {
     booking.value = false
@@ -237,6 +260,7 @@ async function book() {
         <div v-for="a in appointments" :key="a.id" class="flex items-center gap-3 py-3">
           <div class="text-center w-16 shrink-0">
             <p class="font-semibold text-highlighted">{{ fmtTime(a.scheduledAt) }}</p>
+            <p class="text-xs text-dimmed">{{ a.durationMinutes }} min</p>
           </div>
           <div class="min-w-0 flex-1">
             <NuxtLink :to="`/patients/${a.patientId}`" class="font-medium text-highlighted hover:text-primary hover:underline">
@@ -367,9 +391,14 @@ async function book() {
             </div>
           </div>
 
-          <UFormField label="Date & time">
-            <UInput v-model="form.when" type="datetime-local" class="w-full" />
-          </UFormField>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <UFormField label="Date & time" :help="`Clinic hours ${clinicHoursLabel()}`">
+              <UInput v-model="form.when" type="datetime-local" class="w-full" />
+            </UFormField>
+            <UFormField label="Length">
+              <USelect v-model="form.durationMinutes" :items="durationOptions" class="w-full" />
+            </UFormField>
+          </div>
           <UFormField label="Dentist">
             <USelect v-model="form.providerId" :items="providerOptions" class="w-full" />
           </UFormField>
@@ -377,7 +406,14 @@ async function book() {
             <UTextarea v-model="form.reason" :rows="2" placeholder="e.g. 6-month cleaning" class="w-full" />
           </UFormField>
 
-          <UAlert v-if="bookError" color="error" variant="subtle" :title="bookError" />
+          <UAlert v-if="bookError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="bookError">
+            <template v-if="conflict" #description>
+              {{ conflict.providerName ?? 'That dentist' }} has
+              {{ conflict.patientName }} booked
+              {{ fmtRange(conflict.scheduledAt, conflict.durationMinutes) }}.
+              Pick another time, shorten this appointment, or leave the dentist unassigned.
+            </template>
+          </UAlert>
         </div>
       </template>
       <template #footer>

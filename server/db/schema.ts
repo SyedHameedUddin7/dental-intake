@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, uuid, text, date, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, pgEnum, uuid, text, date, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const userRole = pgEnum('user_role', ['admin', 'front_desk', 'dentist']);
@@ -43,6 +43,9 @@ export const visits = pgTable('visits', {
   diagnosis: text('diagnosis'),
   comments: text('comments'),
   scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  // How long the chair is held, in minutes. Together with scheduledAt this is
+  // what makes two bookings for one dentist detectably overlap.
+  durationMinutes: integer('duration_minutes').notNull().default(30),
   checkedInAt: timestamp('checked_in_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

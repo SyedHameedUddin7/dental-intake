@@ -71,6 +71,13 @@
       "when": 1790700999129,
       "tag": "0009_drop_signup_profile_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790856651837,
+      "tag": "0010_visit_duration",
+      "breakpoints": true
     }
   ]
 }

@@ -25,21 +25,34 @@ const { data: visits, refresh } = await useFetch<BoardVisit[]>('/api/visits', {
 const live = ref(false)
 const isToday = computed(() => selectedDate.value === today)
 const isDentist = computed(() => profile.value?.role === 'dentist')
+// Checking an expected patient in is a front-desk action, same as on the
+// schedule page — a dentist works the board once people have arrived.
+const canCheckIn = computed(() => ['admin', 'front_desk'].includes(profile.value?.role ?? ''))
 
 const columns: {
   key: VisitStatus
   label: string
   icon: string
-  color: 'info' | 'warning' | 'success'
+  color: 'info' | 'warning' | 'success' | 'neutral'
   iconClass: string
 }[] = [
+  { key: 'scheduled', label: 'Expected', icon: 'i-lucide-clock', color: 'neutral', iconClass: 'text-muted' },
   { key: 'checked_in', label: 'Checked in', icon: 'i-lucide-user-check', color: 'info', iconClass: 'text-info' },
   { key: 'in_progress', label: 'In progress', icon: 'i-lucide-loader', color: 'warning', iconClass: 'text-warning' },
   { key: 'done', label: 'Done', icon: 'i-lucide-check-circle-2', color: 'success', iconClass: 'text-success' },
 ]
 
 function byStatus(status: VisitStatus) {
-  return (visits.value ?? []).filter((v) => v.status === status)
+  const rows = (visits.value ?? []).filter((v) => v.status === status)
+  // Arrivals read newest-first, as they did before. People still expected read
+  // in appointment order, so the next one through the door is at the top.
+  if (status !== 'scheduled') return rows
+  return [...rows].sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''))
+}
+
+// Expected patients are placed by appointment time; everyone else by arrival.
+function cardTime(v: BoardVisit) {
+  return v.status === 'scheduled' ? fmtTime(v.scheduledAt) : fmtTime(v.checkedInAt)
 }
 
 function initials(v: BoardVisit) {
@@ -86,7 +99,7 @@ onUnmounted(() => {
       </div>
 
       <div class="ml-auto flex items-center gap-2">
-        <UInput v-model="selectedDate" type="date" icon="i-lucide-calendar" :max="today" />
+        <UInput v-model="selectedDate" type="date" icon="i-lucide-calendar" />
         <UButton
           v-if="!isToday"
           label="Today"
@@ -105,7 +118,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       <section v-for="col in columns" :key="col.key" class="flex flex-col">
         <div class="flex items-center gap-2 mb-3">
           <UIcon :name="col.icon" class="size-4" :class="col.iconClass" />
@@ -137,8 +150,9 @@ onUnmounted(() => {
                   >
                     {{ v.patientFirstName }} {{ v.patientLastName }}
                   </NuxtLink>
-                  <span class="ml-auto text-xs text-muted whitespace-nowrap">{{ fmtTime(v.checkedInAt) }}</span>
+                  <span class="ml-auto text-xs text-muted whitespace-nowrap">{{ cardTime(v) }}</span>
                 </div>
+                <p v-if="v.status === 'scheduled'" class="text-xs text-dimmed mt-0.5">{{ v.durationMinutes }} min</p>
                 <p v-if="v.reason" class="text-sm text-muted line-clamp-2 mt-0.5">{{ v.reason }}</p>
                 <UBadge
                   v-if="v.providerName"
@@ -154,6 +168,15 @@ onUnmounted(() => {
             </div>
 
             <div class="flex gap-2 mt-3">
+              <UButton
+                v-if="v.status === 'scheduled' && canCheckIn"
+                label="Check in"
+                icon="i-lucide-user-check"
+                color="primary"
+                variant="soft"
+                size="xs"
+                @click="setStatus(v.id, 'checked_in')"
+              />
               <UButton
                 v-if="v.status === 'checked_in'"
                 label="Start"

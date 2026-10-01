@@ -1,0 +1,1 @@
+ALTER TABLE "visits" ADD COLUMN "duration_minutes" integer DEFAULT 30 NOT NULL;

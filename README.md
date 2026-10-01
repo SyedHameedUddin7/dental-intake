@@ -11,10 +11,14 @@ built on Nuxt 4, Supabase, and Drizzle.
 - **Voice intake** — record the patient; Deepgram transcribes and the fields are pre-filled for review.
 - **AI medical summary** — Groq (`llama-3.3-70b`) produces a structured clinical summary with
   dental-relevant risk flags.
-- **Live status board** — Supabase Realtime board (checked-in / in-progress / done), scoped per day,
-  with per-dentist filtering (a dentist sees their patients + the unassigned pool).
-- **Scheduling** — book future appointments, a live day view, and one-click check-in that moves a
-  booking straight onto the board.
+- **Live status board** — Supabase Realtime board (expected / checked-in / in-progress / done), scoped
+  per day and able to look ahead, so one page covers both walk-ins and who is still expected. Expected
+  patients can be checked in from the board. Per-dentist filtering throughout (a dentist sees their
+  patients + the unassigned pool).
+- **Scheduling** — book future appointments with an appointment length, a live day view, and
+  one-click check-in that moves a booking straight onto the board. Bookings are refused when they
+  fall outside clinic hours or would double-book the chosen dentist; the clash is named so the front
+  desk can pick another slot. An unassigned booking goes to the pool and never clashes.
 - **Recalls** — patients overdue for a follow-up (last visit > 6 months, no upcoming appointment),
   with a one-click "Book" that deep-links into scheduling.
 - **Patient records** — a searchable directory and a per-patient timeline of every visit with its
