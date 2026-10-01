@@ -33,24 +33,34 @@ export default defineEventHandler(async (event) => {
 
   // Create the auth user with the secret key. email_confirm skips the email
   // verification step so the account is usable immediately.
+  //
+  // app_metadata.provisioned is what the on_auth_user_created trigger looks for
+  // before it will create a profile at all. It has to live in app_metadata
+  // rather than user_metadata because only the service role can write that —
+  // a client could set user_metadata on itself during sign-up and self-promote.
   const admin = getSupabaseAdmin()
   const { data, error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: { full_name: fullName },
+    app_metadata: { provisioned: true },
   })
   if (error || !data.user) {
     // e.g. "A user with this email address has already been registered".
     throw createError({ statusCode: 400, statusMessage: error?.message || 'Could not create user' })
   }
 
-  // The on_auth_user_created trigger inserts the profile (role defaults to
-  // front_desk); set the chosen role and name here.
+  // The trigger inserts the profile; upsert rather than update so creating a
+  // login never depends on that having happened, and so the role is set in one
+  // place either way.
   await db
-    .update(profiles)
-    .set({ role, fullName, updatedAt: new Date() })
-    .where(eq(profiles.id, data.user.id))
+    .insert(profiles)
+    .values({ id: data.user.id, role, fullName })
+    .onConflictDoUpdate({
+      target: profiles.id,
+      set: { role, fullName, updatedAt: new Date() },
+    })
 
   await logAudit({
     actorId: userId,
