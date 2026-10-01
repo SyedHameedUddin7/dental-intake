@@ -1,12 +1,13 @@
 import { z } from 'zod'
-import { eq, and, or, gte, lt, isNull, inArray, desc } from 'drizzle-orm'
+import { eq, and, or, gte, lt, isNull, inArray, desc, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { db } from '../db'
 import { visits, patients, profiles } from '../db/schema'
 import { serverSupabaseUser } from '#supabase/server'
 
-// Active statuses shown on the live board.
-const ACTIVE = ['checked_in', 'in_progress', 'done'] as const
+// Statuses for people who have physically arrived — placed on the board by
+// when they checked in.
+const ARRIVED = ['checked_in', 'in_progress', 'done'] as const
 
 // Local-day [start, end) range for a 'YYYY-MM-DD' string (defaults to today).
 function dayRange(dateStr?: string) {
@@ -53,6 +54,8 @@ export default defineEventHandler(async (event) => {
       status: visits.status,
       reason: visits.reason,
       checkedInAt: visits.checkedInAt,
+      scheduledAt: visits.scheduledAt,
+      durationMinutes: visits.durationMinutes,
       createdAt: visits.createdAt,
       patientFirstName: patients.firstName,
       patientLastName: patients.lastName,
@@ -64,13 +67,27 @@ export default defineEventHandler(async (event) => {
     .leftJoin(provider, eq(visits.providerId, provider.id))
     .where(
       and(
-        inArray(visits.status, [...ACTIVE]),
-        gte(visits.checkedInAt, start),
-        lt(visits.checkedInAt, end),
+        // The board covers a whole day in two senses, because a visit is dated
+        // by a different column depending on where it is in its life: someone
+        // who has arrived is placed by checkedInAt, someone still expected by
+        // scheduledAt. Carrying both is what lets the board show the rest of
+        // the day instead of only who is already in the building.
+        or(
+          and(
+            inArray(visits.status, [...ARRIVED]),
+            gte(visits.checkedInAt, start),
+            lt(visits.checkedInAt, end),
+          ),
+          and(
+            eq(visits.status, 'scheduled'),
+            gte(visits.scheduledAt, start),
+            lt(visits.scheduledAt, end),
+          ),
+        ),
         scope,
       ),
     )
-    .orderBy(desc(visits.checkedInAt))
+    .orderBy(desc(sql`coalesce(${visits.checkedInAt}, ${visits.scheduledAt})`))
 
   return rows
 })
